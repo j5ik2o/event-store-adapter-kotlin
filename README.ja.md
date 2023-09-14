@@ -21,10 +21,6 @@ EventStoreを使えば、Event Sourcing対応リポジトリを簡単に実装�
 ```kotlin
 ```
 
-## Table Specifications
-
-See [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md).
-
 ## テーブル仕様
 
 [docs/DATABASE_SCHEMA.ja.md](docs/DATABASE_SCHEMA.ja.md)を参照してください。
