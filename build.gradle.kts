@@ -46,9 +46,9 @@ tasks {
         into("docs/javadoc")
     }
 
-//    assemble {
-//        dependsOn("javadocToDocsFolder")
-//    }
+    assemble {
+        dependsOn("javadocToDocsFolder")
+    }
 
     create<Jar>("sourcesJar") {
         from(sourceSets.main.get().allJava)
