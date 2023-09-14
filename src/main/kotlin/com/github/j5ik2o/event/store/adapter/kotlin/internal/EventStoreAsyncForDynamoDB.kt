@@ -3,6 +3,9 @@ package com.github.j5ik2o.event.store.adapter.kotlin.internal
 import com.github.j5ik2o.event.store.adapter.java.Aggregate
 import com.github.j5ik2o.event.store.adapter.java.AggregateId
 import com.github.j5ik2o.event.store.adapter.java.Event
+import com.github.j5ik2o.event.store.adapter.java.EventSerializer
+import com.github.j5ik2o.event.store.adapter.java.KeyResolver
+import com.github.j5ik2o.event.store.adapter.java.SnapshotSerializer
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.CompletableFuture
@@ -11,6 +14,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.jvm.optionals.getOrNull
+import kotlin.time.Duration
+import kotlin.time.toJavaDuration
 import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreAsyncForDynamoDB as JavaEventStoreAsyncForDynamoDB
 
 suspend fun <T> CompletableFuture<T>.await(): T =
@@ -27,6 +32,31 @@ suspend fun <T> CompletableFuture<T>.await(): T =
 class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>>(
     private val underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>,
 ) : EventStoreAsync<AID, A, E> {
+
+    override fun withKeepSnapshotCount(keepSnapshotCount: Long): EventStoreAsyncForDynamoDB<AID, A, E> {
+        val updated = underlying.withKeepSnapshotCount(keepSnapshotCount)
+        return EventStoreAsyncForDynamoDB(updated)
+    }
+
+    override fun withDeleteTtl(deleteTtl: Duration): EventStoreAsyncForDynamoDB<AID, A, E> {
+        val updated = underlying.withDeleteTtl(deleteTtl.toJavaDuration())
+        return EventStoreAsyncForDynamoDB(updated)
+    }
+
+    override fun withSnapshotSerializer(snapshotSerializer: SnapshotSerializer<AID, A>): EventStoreAsyncForDynamoDB<AID, A, E> {
+        val updated = underlying.withSnapshotSerializer(snapshotSerializer)
+        return EventStoreAsyncForDynamoDB(updated)
+    }
+
+    override fun withEventSerializer(eventSerializer: EventSerializer<AID, E>): EventStoreAsyncForDynamoDB<AID, A, E> {
+        val updated = underlying.withEventSerializer(eventSerializer)
+        return EventStoreAsyncForDynamoDB(updated)
+    }
+
+    override fun withKeyResolver(keyResolver: KeyResolver<AID>): EventStoreAsyncForDynamoDB<AID, A, E> {
+        val updated = underlying.withKeyResolver(keyResolver)
+        return EventStoreAsyncForDynamoDB(updated)
+    }
 
     override suspend fun getLatestSnapshotById(
         clazz: Class<A>,

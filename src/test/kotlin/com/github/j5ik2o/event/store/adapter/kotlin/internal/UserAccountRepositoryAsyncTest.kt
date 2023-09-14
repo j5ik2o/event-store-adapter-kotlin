@@ -31,7 +31,7 @@ class UserAccountRepositoryAsyncTest {
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
 
     private val testTimeFactor: Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
-    private val timeout = (60 * testTimeFactor).toInt().seconds
+    private val timeout = (10 * testTimeFactor).toInt().seconds
 
     @Test
     fun repositoryStoreAndFindById() = runTest {

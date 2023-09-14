@@ -7,7 +7,7 @@ import com.github.j5ik2o.event.store.adapter.kotlin.internal.EventStoreAsyncForD
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreAsyncForDynamoDB as JavaEventStoreAsyncForDynamoDB
 
-interface EventStoreAsync<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> {
+interface EventStoreAsync<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> : EventStoreOptions<EventStoreAsync<AID, A, E>, AID, A, E> {
 
     companion object {
         fun <AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> ofDynamoDB(underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>): EventStoreAsyncForDynamoDB<AID, A, E> {
