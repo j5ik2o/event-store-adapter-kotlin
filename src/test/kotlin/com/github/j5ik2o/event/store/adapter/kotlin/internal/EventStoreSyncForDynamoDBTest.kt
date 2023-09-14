@@ -1,6 +1,6 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
-import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.slf4j.Logger
@@ -13,10 +13,10 @@ import kotlin.test.assertEquals
 import kotlin.test.junit5.JUnit5Asserter.fail
 
 @Testcontainers
-class EventStoreAsyncForDynamoDBTest {
+class EventStoreSyncForDynamoDBTest {
 
     companion object {
-        val LOGGER: Logger = LoggerFactory.getLogger(EventStoreAsyncForDynamoDBTest::class.java)
+        val LOGGER: Logger = LoggerFactory.getLogger(EventStoreSyncForDynamoDBTest::class.java)
         const val JOURNAL_TABLE_NAME = "journal"
         const val SNAPSHOT_TABLE_NAME = "snapshot"
         const val JOURNAL_AID_INDEX_NAME: String = "journal-aid-index"
@@ -30,22 +30,20 @@ class EventStoreAsyncForDynamoDBTest {
 
     @Test
     fun persistAndGet() = runTest {
-        DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->
+        DynamoDBAsyncUtils.createDynamoDbClient(localstack).use { client ->
             DynamoDBAsyncUtils.createJournalTable(
                 client,
                 JOURNAL_TABLE_NAME,
                 JOURNAL_AID_INDEX_NAME,
             )
-                .join()
             DynamoDBAsyncUtils.createSnapshotTable(
                 client,
                 SNAPSHOT_TABLE_NAME,
                 SNAPSHOT_AID_INDEX_NAME,
             )
-                .join()
-            client.listTables().join().tableNames().forEach(System.out::println)
+            client.listTables().tableNames().forEach(System.out::println)
 
-            val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
+            val eventStore = EventStore.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
                 client,
                 JOURNAL_TABLE_NAME,
                 SNAPSHOT_TABLE_NAME,

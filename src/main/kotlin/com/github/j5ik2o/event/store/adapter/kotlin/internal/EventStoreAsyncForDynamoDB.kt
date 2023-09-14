@@ -1,7 +1,6 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.java.Aggregate
-import com.github.j5ik2o.event.store.adapter.java.AggregateAndVersion
 import com.github.j5ik2o.event.store.adapter.java.AggregateId
 import com.github.j5ik2o.event.store.adapter.java.Event
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
@@ -17,24 +16,31 @@ import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreAsyncForDyn
 suspend fun <T> CompletableFuture<T>.await(): T =
     suspendCoroutine { cont: Continuation<T> ->
         whenComplete { result, exception ->
-            if (exception == null) // the future has been completed normally
+            if (exception == null) {
                 cont.resume(result)
-            else // the future has completed with an exception
+            } else {
                 cont.resumeWithException(exception)
+            }
         }
     }
 
 class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>>(
-    private val underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>) : EventStoreAsync<AID, A, E> {
+    private val underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>,
+) : EventStoreAsync<AID, A, E> {
 
     override suspend fun getLatestSnapshotById(
-        clazz: Class<A>, aggregateId: AID
-    ): AggregateAndVersion<AID, A>? = coroutineScope {
-        underlying.getLatestSnapshotById(clazz, aggregateId).await().getOrNull()
+        clazz: Class<A>,
+        aggregateId: AID,
+    ): Pair<A, Long>? = coroutineScope {
+        underlying.getLatestSnapshotById(clazz, aggregateId).await().map {
+            Pair(it.aggregate, it.version)
+        }.getOrNull()
     }
 
     override suspend fun getEventsByIdSinceSequenceNumber(
-        clazz: Class<E>, aggregateId: AID, sequenceNumber: Long
+        clazz: Class<E>,
+        aggregateId: AID,
+        sequenceNumber: Long,
     ): List<E> = coroutineScope {
         underlying.getEventsByIdSinceSequenceNumber(clazz, aggregateId, sequenceNumber).await()
     }
@@ -45,9 +51,8 @@ class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Even
 
     override suspend fun persistEventAndSnapshot(
         event: E,
-        aggregate: A
+        aggregate: A,
     ): Unit = coroutineScope {
         underlying.persistEventAndSnapshot(event, aggregate).await()
     }
-
 }

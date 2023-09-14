@@ -2,7 +2,6 @@ package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import de.huxhorn.sulky.ulid.ULID
 
-
 object IdGenerator {
     private val ulid: ULID = ULID()
     private var prevValue: ULID.Value? = null
@@ -17,4 +16,3 @@ object IdGenerator {
         return prevValue!!
     }
 }
-

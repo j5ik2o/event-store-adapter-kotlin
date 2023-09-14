@@ -8,18 +8,18 @@ data class UserAccount private constructor(
     @JsonProperty("id") private val id: UserAccountId,
     @JsonProperty("sequenceNumber") private var sequenceNumber: Long,
     @JsonProperty("name") val name: String,
-    @JsonProperty("version") private var version: Long
+    @JsonProperty("version") private var version: Long,
 ) : Aggregate<UserAccountId> {
 
     fun applyEvent(event: UserAccountEvent): UserAccount {
         return if (event is UserAccountEvent.Renamed) {
-           changeName(event.name).first
+            changeName(event.name).first
         } else {
             throw IllegalArgumentException()
         }
     }
 
-    fun changeName( name: String ): Pair<UserAccount, UserAccountEvent> {
+    fun changeName(name: String): Pair<UserAccount, UserAccountEvent> {
         val userAccount = UserAccount(id, sequenceNumber, name, version)
         userAccount.sequenceNumber++
         val event = UserAccountEvent.Renamed(
@@ -27,7 +27,7 @@ data class UserAccount private constructor(
             userAccount.id,
             userAccount.sequenceNumber,
             name,
-            Instant.now()
+            Instant.now(),
         )
         return Pair(userAccount, event)
     }
@@ -48,11 +48,11 @@ data class UserAccount private constructor(
         fun replay(
             events: List<UserAccountEvent>,
             snapshot: UserAccount,
-            version: Long
+            version: Long,
         ): UserAccount {
             val userAccount = events.fold(snapshot) { obj: UserAccount, event: UserAccountEvent ->
                 obj.applyEvent(
-                    event
+                    event,
                 )
             }
             userAccount.version = version
@@ -60,7 +60,8 @@ data class UserAccount private constructor(
         }
 
         fun create(
-           id: UserAccountId, name: String
+            id: UserAccountId,
+            name: String,
         ): Pair<UserAccount, UserAccountEvent> {
             val userAccount = UserAccount(id, 0L, name, 1L)
             userAccount.sequenceNumber++
@@ -69,10 +70,9 @@ data class UserAccount private constructor(
                 userAccount.id,
                 userAccount.sequenceNumber,
                 name,
-                Instant.now()
+                Instant.now(),
             )
-            return Pair( userAccount, event )
+            return Pair(userAccount, event)
         }
     }
 }
-

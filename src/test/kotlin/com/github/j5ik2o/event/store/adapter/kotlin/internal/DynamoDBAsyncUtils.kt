@@ -3,6 +3,7 @@ package com.github.j5ik2o.event.store.adapter.kotlin.internal
 import org.testcontainers.containers.localstack.LocalStackContainer
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest
 import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse
 import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex
@@ -14,7 +15,6 @@ import software.amazon.awssdk.services.dynamodb.model.TimeToLiveSpecification
 import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveRequest
 import java.util.concurrent.CompletableFuture
 
-
 object DynamoDBAsyncUtils {
 
     fun createDynamoDbAsyncClient(localstack: LocalStackContainer): DynamoDbAsyncClient {
@@ -22,15 +22,29 @@ object DynamoDBAsyncUtils {
             .endpointOverride(localstack.endpoint)
             .credentialsProvider(
                 software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
-                    AwsBasicCredentials.create(localstack.accessKey, localstack.secretKey)
-                )
+                    AwsBasicCredentials.create(localstack.accessKey, localstack.secretKey),
+                ),
+            )
+            .region(software.amazon.awssdk.regions.Region.of(localstack.region))
+            .build()
+    }
+
+    fun createDynamoDbClient(localstack: LocalStackContainer): DynamoDbClient {
+        return DynamoDbClient.builder()
+            .endpointOverride(localstack.endpoint)
+            .credentialsProvider(
+                software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(localstack.accessKey, localstack.secretKey),
+                ),
             )
             .region(software.amazon.awssdk.regions.Region.of(localstack.region))
             .build()
     }
 
     fun createSnapshotTable(
-        client: DynamoDbAsyncClient, tableName: String?, indexName: String?
+        client: DynamoDbAsyncClient,
+        tableName: String?,
+        indexName: String?,
     ): CompletableFuture<Void> {
         val pt: ProvisionedThroughput =
             ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
@@ -53,13 +67,13 @@ object DynamoDBAsyncUtils {
                     software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
                         .attributeName("seq_nr")
                         .attributeType(ScalarAttributeType.N)
-                        .build()
+                        .build(),
                 )
                 .keySchema(
                     KeySchemaElement.builder().attributeName("pkey")
                         .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH).build(),
                     KeySchemaElement.builder().attributeName("skey")
-                        .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build()
+                        .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build(),
                 )
                 .globalSecondaryIndexes(
                     GlobalSecondaryIndex.builder()
@@ -72,17 +86,17 @@ object DynamoDBAsyncUtils {
                             KeySchemaElement.builder()
                                 .attributeName("seq_nr")
                                 .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE)
-                                .build()
+                                .build(),
                         )
                         .projection(
                             software.amazon.awssdk.services.dynamodb.model.Projection.builder()
-                                .projectionType(ProjectionType.ALL).build()
+                                .projectionType(ProjectionType.ALL).build(),
                         )
                         .provisionedThroughput(pt)
-                        .build()
+                        .build(),
                 )
                 .provisionedThroughput(pt)
-                .build()
+                .build(),
         )
         return response
             .thenCompose {
@@ -93,16 +107,88 @@ object DynamoDBAsyncUtils {
                             TimeToLiveSpecification.builder()
                                 .enabled(true)
                                 .attributeName("ttl")
-                                .build()
+                                .build(),
                         )
-                        .build()
+                        .build(),
                 )
             }
             .thenRun {}
     }
 
+    fun createSnapshotTable(
+        client: DynamoDbClient,
+        tableName: String?,
+        indexName: String?,
+    ) {
+        val pt: ProvisionedThroughput =
+            ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
+        client.createTable(
+            CreateTableRequest.builder()
+                .tableName(tableName)
+                .attributeDefinitions(
+                    software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                        .attributeName("pkey")
+                        .attributeType(ScalarAttributeType.S)
+                        .build(),
+                    software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                        .attributeName("skey")
+                        .attributeType(ScalarAttributeType.S)
+                        .build(),
+                    software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                        .attributeName("aid")
+                        .attributeType(ScalarAttributeType.S)
+                        .build(),
+                    software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                        .attributeName("seq_nr")
+                        .attributeType(ScalarAttributeType.N)
+                        .build(),
+                )
+                .keySchema(
+                    KeySchemaElement.builder().attributeName("pkey")
+                        .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH).build(),
+                    KeySchemaElement.builder().attributeName("skey")
+                        .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build(),
+                )
+                .globalSecondaryIndexes(
+                    GlobalSecondaryIndex.builder()
+                        .indexName(indexName)
+                        .keySchema(
+                            KeySchemaElement.builder()
+                                .attributeName("aid")
+                                .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH)
+                                .build(),
+                            KeySchemaElement.builder()
+                                .attributeName("seq_nr")
+                                .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE)
+                                .build(),
+                        )
+                        .projection(
+                            software.amazon.awssdk.services.dynamodb.model.Projection.builder()
+                                .projectionType(ProjectionType.ALL).build(),
+                        )
+                        .provisionedThroughput(pt)
+                        .build(),
+                )
+                .provisionedThroughput(pt)
+                .build(),
+        )
+        client.updateTimeToLive(
+            UpdateTimeToLiveRequest.builder()
+                .tableName(tableName)
+                .timeToLiveSpecification(
+                    TimeToLiveSpecification.builder()
+                        .enabled(true)
+                        .attributeName("ttl")
+                        .build(),
+                )
+                .build(),
+        )
+    }
+
     fun createJournalTable(
-        client: DynamoDbAsyncClient, tableName: String?, indexName: String?
+        client: DynamoDbAsyncClient,
+        tableName: String?,
+        indexName: String?,
     ): CompletableFuture<Void> {
         val pt: ProvisionedThroughput =
             ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
@@ -126,13 +212,13 @@ object DynamoDBAsyncUtils {
                         software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
                             .attributeName("seq_nr")
                             .attributeType(ScalarAttributeType.N)
-                            .build()
+                            .build(),
                     )
                     .keySchema(
                         KeySchemaElement.builder().attributeName("pkey")
                             .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH).build(),
                         KeySchemaElement.builder().attributeName("skey")
-                            .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build()
+                            .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build(),
                     )
                     .globalSecondaryIndexes(
                         GlobalSecondaryIndex.builder()
@@ -145,19 +231,78 @@ object DynamoDBAsyncUtils {
                                 KeySchemaElement.builder()
                                     .attributeName("seq_nr")
                                     .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE)
-                                    .build()
+                                    .build(),
                             )
                             .projection(
                                 software.amazon.awssdk.services.dynamodb.model.Projection.builder()
-                                    .projectionType(ProjectionType.ALL).build()
+                                    .projectionType(ProjectionType.ALL).build(),
                             )
                             .provisionedThroughput(pt)
-                            .build()
+                            .build(),
                     )
                     .provisionedThroughput(pt)
-                    .build()
+                    .build(),
             )
             .thenRun {}
     }
-}
 
+    fun createJournalTable(
+        client: DynamoDbClient,
+        tableName: String?,
+        indexName: String?,
+    ) {
+        val pt: ProvisionedThroughput =
+            ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
+        client
+            .createTable(
+                CreateTableRequest.builder()
+                    .tableName(tableName)
+                    .attributeDefinitions(
+                        software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                            .attributeName("pkey")
+                            .attributeType(ScalarAttributeType.S)
+                            .build(),
+                        software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                            .attributeName("skey")
+                            .attributeType(ScalarAttributeType.S)
+                            .build(),
+                        software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                            .attributeName("aid")
+                            .attributeType(ScalarAttributeType.S)
+                            .build(),
+                        software.amazon.awssdk.services.dynamodb.model.AttributeDefinition.builder()
+                            .attributeName("seq_nr")
+                            .attributeType(ScalarAttributeType.N)
+                            .build(),
+                    )
+                    .keySchema(
+                        KeySchemaElement.builder().attributeName("pkey")
+                            .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH).build(),
+                        KeySchemaElement.builder().attributeName("skey")
+                            .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE).build(),
+                    )
+                    .globalSecondaryIndexes(
+                        GlobalSecondaryIndex.builder()
+                            .indexName(indexName)
+                            .keySchema(
+                                KeySchemaElement.builder()
+                                    .attributeName("aid")
+                                    .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.HASH)
+                                    .build(),
+                                KeySchemaElement.builder()
+                                    .attributeName("seq_nr")
+                                    .keyType(software.amazon.awssdk.services.dynamodb.model.KeyType.RANGE)
+                                    .build(),
+                            )
+                            .projection(
+                                software.amazon.awssdk.services.dynamodb.model.Projection.builder()
+                                    .projectionType(ProjectionType.ALL).build(),
+                            )
+                            .provisionedThroughput(pt)
+                            .build(),
+                    )
+                    .provisionedThroughput(pt)
+                    .build(),
+            )
+    }
+}

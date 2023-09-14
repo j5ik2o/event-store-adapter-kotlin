@@ -1,72 +1,67 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
-import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
-import kotlin.test.junit5.JUnit5Asserter.fail
 
 @Testcontainers
-class EventStoreAsyncForDynamoDBTest {
-
+class UserAccountRepositorySyncTest {
     companion object {
-        val LOGGER: Logger = LoggerFactory.getLogger(EventStoreAsyncForDynamoDBTest::class.java)
         const val JOURNAL_TABLE_NAME = "journal"
         const val SNAPSHOT_TABLE_NAME = "snapshot"
         const val JOURNAL_AID_INDEX_NAME: String = "journal-aid-index"
         const val SNAPSHOT_AID_INDEX_NAME: String = "snapshot-aid-index"
     }
-
     private val localstackImage: DockerImageName = DockerImageName.parse("localstack/localstack:2.1.0")
 
     @Container
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
 
     @Test
-    fun persistAndGet() = runTest {
-        DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->
+    fun repositoryStoreAndFindById() = runTest {
+        DynamoDBAsyncUtils.createDynamoDbClient(localstack).use { client ->
             DynamoDBAsyncUtils.createJournalTable(
                 client,
                 JOURNAL_TABLE_NAME,
                 JOURNAL_AID_INDEX_NAME,
             )
-                .join()
             DynamoDBAsyncUtils.createSnapshotTable(
                 client,
                 SNAPSHOT_TABLE_NAME,
                 SNAPSHOT_AID_INDEX_NAME,
             )
-                .join()
-            client.listTables().join().tableNames().forEach(System.out::println)
-
-            val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
-                client,
-                JOURNAL_TABLE_NAME,
-                SNAPSHOT_TABLE_NAME,
-                JOURNAL_AID_INDEX_NAME,
-                SNAPSHOT_AID_INDEX_NAME,
-                32,
-            )
-
+            client.listTables().tableNames().forEach(System.out::println)
+            val eventStore =
+                EventStore.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
+                    client,
+                    JOURNAL_TABLE_NAME,
+                    SNAPSHOT_TABLE_NAME,
+                    JOURNAL_AID_INDEX_NAME,
+                    SNAPSHOT_AID_INDEX_NAME,
+                    32,
+                )
+            val userAccountRepository = UserAccountRepositorySync(eventStore)
             val id = UserAccountId(IdGenerator.generate().toString())
-            val aggregateAndEvent = UserAccount.create(id, "test-1")
+            val aggregateAndEvent1 = UserAccount.create(id, "test-1")
+            val aggregate1 = aggregateAndEvent1.first
 
-            eventStore
-                .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
-            val result =
-                eventStore.getLatestSnapshotById(UserAccount::class.java, id)
+            userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+
+            val aggregateAndEvent2 = aggregate1.changeName("test-2")
+            userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
+            val result = userAccountRepository.findById(id)
 
             if (result != null) {
-                assertEquals(result.first.id, aggregateAndEvent.first.id)
-                LOGGER.info("result = {}", result)
+                assertEquals(result.id, aggregateAndEvent1.first.id)
+                assertEquals(result.name, "test-2")
             } else {
-                fail("result is null")
+                Assertions.fail<Any>("result is empty")
             }
         }
     }
