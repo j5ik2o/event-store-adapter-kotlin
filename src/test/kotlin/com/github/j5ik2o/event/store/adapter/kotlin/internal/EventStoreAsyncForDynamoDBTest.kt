@@ -1,10 +1,13 @@
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestCoroutineDispatcher
+import kotlinx.coroutines.test.TestCoroutineScope
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.createTestCoroutineScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -19,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.junit5.JUnit5Asserter.fail
 import kotlin.time.Duration.Companion.seconds
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Testcontainers
 class EventStoreAsyncForDynamoDBTest {
 
@@ -39,7 +43,7 @@ class EventStoreAsyncForDynamoDBTest {
     private fun timeout() = (10 * testTimeFactor()).toInt().seconds
 
     @Test
-    fun persistAndGet() = runTest {
+    fun persistAndGet() = runTest(UnconfinedTestDispatcher()) {
         val timeout = timeout()
         LOGGER.info("timeout = {}", timeout)
         DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->

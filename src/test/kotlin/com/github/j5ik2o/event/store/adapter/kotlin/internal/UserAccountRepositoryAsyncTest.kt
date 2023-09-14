@@ -1,10 +1,9 @@
-@file:OptIn(ExperimentalCoroutinesApi::class)
-
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -19,6 +18,7 @@ import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Testcontainers
 class UserAccountRepositoryAsyncTest {
     companion object {
@@ -37,7 +37,7 @@ class UserAccountRepositoryAsyncTest {
     private fun timeout() = (10 * testTimeFactor()).toInt().seconds
 
     @Test
-    fun repositoryStoreAndFindById() = runTest {
+    fun repositoryStoreAndFindById() = runTest(UnconfinedTestDispatcher()) {
         val timeout = timeout()
         LOGGER.info("timeout = {}", timeout)
         DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->
