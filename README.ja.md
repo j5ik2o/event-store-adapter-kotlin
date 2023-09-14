@@ -5,18 +5,18 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![tokei](https://tokei.rs/b1/github/j5ik2o/event-store-adapter-kotlin)](https://github.com/XAMPPRocky/tokei)
 
-This library is designed to turn DynamoDB into an Event Store for Event Sourcing.
+このライブラリは、DynamoDBをEvent Sourcing用のEvent Storeにするためのものです。
 
-[日本語](./README.ja.md)
+[English](./README.md)
 
-# Usage
+# 使い方
 
-You can easily implement an Event Sourcing-enabled repository using EventStore.
+EventStoreを使えば、Event Sourcing対応リポジトリを簡単に実装できます。
 
 ```kotlin
 ```
 
-The following is an example of the repository usage.
+以下はリポジトリの使用例です。
 
 ```kotlin
 ```
@@ -25,11 +25,15 @@ The following is an example of the repository usage.
 
 See [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md).
 
-## License.
+## テーブル仕様
 
-MIT License. See [LICENSE](LICENSE) for details.
+[docs/DATABASE_SCHEMA.ja.md](docs/DATABASE_SCHEMA.ja.md)を参照してください。
 
-## Other language implementations
+## ライセンス
+
+MITライセンスです。詳細は[LICENSE](LICENSE)を参照してください。
+
+## 他の言語向けの実装
 
 - [for Java](https://github.com/j5ik2o/event-store-adapter-java)
 - [for Scala](https://github.com/j5ik2o/event-store-adapter-scala)
