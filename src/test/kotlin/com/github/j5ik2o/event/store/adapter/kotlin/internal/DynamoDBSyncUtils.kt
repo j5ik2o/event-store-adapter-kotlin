@@ -2,9 +2,8 @@ package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import org.testcontainers.containers.localstack.LocalStackContainer
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
-import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest
-import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse
 import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement
 import software.amazon.awssdk.services.dynamodb.model.ProjectionType
@@ -12,12 +11,11 @@ import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType
 import software.amazon.awssdk.services.dynamodb.model.TimeToLiveSpecification
 import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveRequest
-import java.util.concurrent.CompletableFuture
 
-object DynamoDBAsyncUtils {
+object DynamoDBSyncUtils {
 
-    fun createDynamoDbAsyncClient(localstack: LocalStackContainer): DynamoDbAsyncClient {
-        return DynamoDbAsyncClient.builder()
+    fun createDynamoDbClient(localstack: LocalStackContainer): DynamoDbClient {
+        return DynamoDbClient.builder()
             .endpointOverride(localstack.endpoint)
             .credentialsProvider(
                 software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
@@ -29,13 +27,13 @@ object DynamoDBAsyncUtils {
     }
 
     fun createSnapshotTable(
-        client: DynamoDbAsyncClient,
+        client: DynamoDbClient,
         tableName: String?,
         indexName: String?,
-    ): CompletableFuture<Void> {
+    ) {
         val pt: ProvisionedThroughput =
             ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
-        val response: CompletableFuture<CreateTableResponse> = client.createTable(
+        client.createTable(
             CreateTableRequest.builder()
                 .tableName(tableName)
                 .attributeDefinitions(
@@ -85,31 +83,27 @@ object DynamoDBAsyncUtils {
                 .provisionedThroughput(pt)
                 .build(),
         )
-        return response
-            .thenCompose {
-                client.updateTimeToLive(
-                    UpdateTimeToLiveRequest.builder()
-                        .tableName(tableName)
-                        .timeToLiveSpecification(
-                            TimeToLiveSpecification.builder()
-                                .enabled(true)
-                                .attributeName("ttl")
-                                .build(),
-                        )
+        client.updateTimeToLive(
+            UpdateTimeToLiveRequest.builder()
+                .tableName(tableName)
+                .timeToLiveSpecification(
+                    TimeToLiveSpecification.builder()
+                        .enabled(true)
+                        .attributeName("ttl")
                         .build(),
                 )
-            }
-            .thenRun {}
+                .build(),
+        )
     }
 
     fun createJournalTable(
-        client: DynamoDbAsyncClient,
+        client: DynamoDbClient,
         tableName: String?,
         indexName: String?,
-    ): CompletableFuture<Void> {
+    ) {
         val pt: ProvisionedThroughput =
             ProvisionedThroughput.builder().readCapacityUnits(10L).writeCapacityUnits(5L).build()
-        return client
+        client
             .createTable(
                 CreateTableRequest.builder()
                     .tableName(tableName)
@@ -160,6 +154,5 @@ object DynamoDBAsyncUtils {
                     .provisionedThroughput(pt)
                     .build(),
             )
-            .thenRun {}
     }
 }

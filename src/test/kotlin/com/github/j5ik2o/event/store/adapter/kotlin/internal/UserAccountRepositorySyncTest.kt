@@ -25,13 +25,13 @@ class UserAccountRepositorySyncTest {
 
     @Test
     fun repositoryStoreAndFindById() = runTest {
-        DynamoDBAsyncUtils.createDynamoDbClient(localstack).use { client ->
-            DynamoDBAsyncUtils.createJournalTable(
+        DynamoDBSyncUtils.createDynamoDbClient(localstack).use { client ->
+            DynamoDBSyncUtils.createJournalTable(
                 client,
                 JOURNAL_TABLE_NAME,
                 JOURNAL_AID_INDEX_NAME,
             )
-            DynamoDBAsyncUtils.createSnapshotTable(
+            DynamoDBSyncUtils.createSnapshotTable(
                 client,
                 SNAPSHOT_TABLE_NAME,
                 SNAPSHOT_AID_INDEX_NAME,

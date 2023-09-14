@@ -26,17 +26,18 @@ class EventStoreSyncForDynamoDBTest {
     private val localstackImage: DockerImageName = DockerImageName.parse("localstack/localstack:2.1.0")
 
     @Container
-    private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+    private val localstack: LocalStackContainer =
+        LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
 
     @Test
     fun persistAndGet() = runTest {
-        DynamoDBAsyncUtils.createDynamoDbClient(localstack).use { client ->
-            DynamoDBAsyncUtils.createJournalTable(
+        DynamoDBSyncUtils.createDynamoDbClient(localstack).use { client ->
+            DynamoDBSyncUtils.createJournalTable(
                 client,
                 JOURNAL_TABLE_NAME,
                 JOURNAL_AID_INDEX_NAME,
             )
-            DynamoDBAsyncUtils.createSnapshotTable(
+            DynamoDBSyncUtils.createSnapshotTable(
                 client,
                 SNAPSHOT_TABLE_NAME,
                 SNAPSHOT_AID_INDEX_NAME,
@@ -57,6 +58,7 @@ class EventStoreSyncForDynamoDBTest {
 
             eventStore
                 .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
+
             val result =
                 eventStore.getLatestSnapshotById(UserAccount::class.java, id)
 

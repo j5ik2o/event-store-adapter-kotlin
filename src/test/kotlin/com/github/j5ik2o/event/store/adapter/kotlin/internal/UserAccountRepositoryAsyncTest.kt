@@ -1,7 +1,13 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.testcontainers.containers.localstack.LocalStackContainer
@@ -9,6 +15,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.seconds
 
 @Testcontainers
 class UserAccountRepositoryAsyncTest {
@@ -22,6 +29,9 @@ class UserAccountRepositoryAsyncTest {
 
     @Container
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+
+    private val testTimeFactor: Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
+    private val timeout = (60 * testTimeFactor).toInt().seconds
 
     @Test
     fun repositoryStoreAndFindById() = runTest {
@@ -53,17 +63,23 @@ class UserAccountRepositoryAsyncTest {
             val aggregateAndEvent1 = UserAccount.create(id, "test-1")
             val aggregate1 = aggregateAndEvent1.first
 
-            userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(timeout) {
+                    userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+                }
 
-            val aggregateAndEvent2 = aggregate1.changeName("test-2")
-            userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
-            val result = userAccountRepository.findById(id)
+                val aggregateAndEvent2 = aggregate1.changeName("test-2")
+                withTimeout(timeout) {
+                    userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
+                }
+                val result = withTimeout(timeout) { userAccountRepository.findById(id) }
 
-            if (result != null) {
-                assertEquals(result.id, aggregateAndEvent1.first.id)
-                assertEquals(result.name, "test-2")
-            } else {
-                Assertions.fail<Any>("result is empty")
+                if (result != null) {
+                    assertEquals(result.id, aggregateAndEvent1.first.id)
+                    assertEquals(result.name, "test-2")
+                } else {
+                    Assertions.fail<Any>("result is empty")
+                }
             }
         }
     }

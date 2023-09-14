@@ -1,7 +1,13 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -11,6 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
 import kotlin.test.junit5.JUnit5Asserter.fail
+import kotlin.time.Duration.Companion.seconds
 
 @Testcontainers
 class EventStoreAsyncForDynamoDBTest {
@@ -27,6 +34,9 @@ class EventStoreAsyncForDynamoDBTest {
 
     @Container
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+
+    private val testTimeFactor: Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
+    private val timeout = (3 * testTimeFactor).toInt().seconds
 
     @Test
     fun persistAndGet() = runTest {
@@ -57,16 +67,22 @@ class EventStoreAsyncForDynamoDBTest {
             val id = UserAccountId(IdGenerator.generate().toString())
             val aggregateAndEvent = UserAccount.create(id, "test-1")
 
-            eventStore
-                .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
-            val result =
-                eventStore.getLatestSnapshotById(UserAccount::class.java, id)
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(timeout) {
+                    eventStore
+                        .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
+                }
 
-            if (result != null) {
-                assertEquals(result.first.id, aggregateAndEvent.first.id)
-                LOGGER.info("result = {}", result)
-            } else {
-                fail("result is null")
+                val result = withTimeout(timeout) {
+                    eventStore.getLatestSnapshotById(UserAccount::class.java, id)
+                }
+
+                if (result != null) {
+                    assertEquals(result.first.id, aggregateAndEvent.first.id)
+                    LOGGER.info("result = {}", result)
+                } else {
+                    fail("result is null")
+                }
             }
         }
     }
