@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -20,6 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 @Testcontainers
 class UserAccountRepositoryAsyncTest {
     companion object {
+        val LOGGER: Logger = LoggerFactory.getLogger(UserAccountRepositoryAsyncTest::class.java)
         const val JOURNAL_TABLE_NAME = "journal"
         const val SNAPSHOT_TABLE_NAME = "snapshot"
         const val JOURNAL_AID_INDEX_NAME: String = "journal-aid-index"
@@ -30,11 +33,13 @@ class UserAccountRepositoryAsyncTest {
     @Container
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
 
-    private val testTimeFactor: Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
-    private val timeout = (10 * testTimeFactor).toInt().seconds
+    private fun testTimeFactor(): Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
+    private fun timeout() = (10 * testTimeFactor()).toInt().seconds
 
     @Test
     fun repositoryStoreAndFindById() = runTest {
+        val timeout = timeout()
+        LOGGER.info("timeout = {}", timeout)
         DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->
             DynamoDBAsyncUtils.createJournalTable(
                 client,

@@ -35,11 +35,13 @@ class EventStoreAsyncForDynamoDBTest {
     @Container
     private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
 
-    private val testTimeFactor: Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
-    private val timeout = (10 * testTimeFactor).toInt().seconds
+    private fun testTimeFactor(): Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
+    private fun timeout() = (10 * testTimeFactor()).toInt().seconds
 
     @Test
     fun persistAndGet() = runTest {
+        val timeout = timeout()
+        LOGGER.info("timeout = {}", timeout)
         DynamoDBAsyncUtils.createDynamoDbAsyncClient(localstack).use { client ->
             DynamoDBAsyncUtils.createJournalTable(
                 client,
