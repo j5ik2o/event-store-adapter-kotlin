@@ -14,6 +14,26 @@ This library is designed to turn DynamoDB into an Event Store for Event Sourcing
 You can easily implement an Event Sourcing-enabled repository using EventStore.
 
 ```kotlin
+class UserAccountRepositoryAsync
+(private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
+
+    suspend fun storeEvent(event: UserAccountEvent, version: Long) {
+        eventStore.persistEvent(event, version)
+    }
+
+    suspend fun storeEventAndSnapshot(event: UserAccountEvent, aggregate: UserAccount) {
+        eventStore.persistEventAndSnapshot(event, aggregate)
+    }
+
+    suspend fun findById(id: UserAccountId): UserAccount? {
+        val (userAccount, version) = eventStore
+            .getLatestSnapshotById(UserAccount::class.java, id) ?: return null
+        val events = eventStore
+            .getEventsByIdSinceSequenceNumber(
+                UserAccountEvent::class.java, id, userAccount.sequenceNumber + 1)
+        return UserAccount.replay(events, userAccount, version)
+    }
+}
 ```
 
 The following is an example of the repository usage.
