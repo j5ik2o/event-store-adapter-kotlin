@@ -48,7 +48,9 @@ val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAcco
     32,
 )
 val userAccountRepository = UserAccountRepositoryAsync(eventStore)
+
 val id = UserAccountId(IdGenerator.generate().toString())
+
 val aggregateAndEvent1 = UserAccount.create(id, "test-1")
 val aggregate1 = aggregateAndEvent1.first
 
