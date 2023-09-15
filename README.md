@@ -15,7 +15,7 @@ You can easily implement an Event Sourcing-enabled repository using EventStore.
 
 ```kotlin
 class UserAccountRepositoryAsync
-(private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
+  (private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
 
     suspend fun storeEvent(event: UserAccountEvent, version: Long) {
         eventStore.persistEvent(event, version)
@@ -39,6 +39,33 @@ class UserAccountRepositoryAsync
 The following is an example of the repository usage.
 
 ```kotlin
+val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
+    client,
+    JOURNAL_TABLE_NAME,
+    SNAPSHOT_TABLE_NAME,
+    JOURNAL_AID_INDEX_NAME,
+    SNAPSHOT_AID_INDEX_NAME,
+    32,
+)
+val userAccountRepository = UserAccountRepositoryAsync(eventStore)
+val id = UserAccountId(IdGenerator.generate().toString())
+val aggregateAndEvent1 = UserAccount.create(id, "test-1")
+val aggregate1 = aggregateAndEvent1.first
+
+userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+
+val aggregateAndEvent2 = aggregate1.changeName("test-2")
+
+userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
+
+val result = userAccountRepository.findById(id)
+
+if (result != null) {
+    assertEquals(result.id, aggregateAndEvent1.first.id)
+    assertEquals(result.name, "test-2")
+} else {
+    Assertions.fail<Any>("result is empty")
+}
 ```
 
 ## Table Specifications
