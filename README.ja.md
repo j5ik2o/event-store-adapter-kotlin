@@ -14,11 +14,60 @@
 EventStoreを使えば、Event Sourcing対応リポジトリを簡単に実装できます。
 
 ```kotlin
+class UserAccountRepositoryAsync
+  (private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
+
+    suspend fun storeEvent(event: UserAccountEvent, version: Long) {
+        eventStore.persistEvent(event, version)
+    }
+
+    suspend fun storeEventAndSnapshot(event: UserAccountEvent, aggregate: UserAccount) {
+        eventStore.persistEventAndSnapshot(event, aggregate)
+    }
+
+    suspend fun findById(id: UserAccountId): UserAccount? {
+        val (userAccount, version) = eventStore
+            .getLatestSnapshotById(UserAccount::class.java, id) ?: return null
+        val events = eventStore
+            .getEventsByIdSinceSequenceNumber(
+                UserAccountEvent::class.java, id, userAccount.sequenceNumber + 1)
+        return UserAccount.replay(events, userAccount, version)
+    }
+}
 ```
 
 以下はリポジトリの使用例です。
 
 ```kotlin
+val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
+    client,
+    JOURNAL_TABLE_NAME,
+    SNAPSHOT_TABLE_NAME,
+    JOURNAL_AID_INDEX_NAME,
+    SNAPSHOT_AID_INDEX_NAME,
+    32,
+)
+val userAccountRepository = UserAccountRepositoryAsync(eventStore)
+
+val id = UserAccountId(IdGenerator.generate().toString())
+
+val aggregateAndEvent1 = UserAccount.create(id, "test-1")
+val aggregate1 = aggregateAndEvent1.first
+
+userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+
+val aggregateAndEvent2 = aggregate1.changeName("test-2")
+
+userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
+
+val result = userAccountRepository.findById(id)
+
+if (result != null) {
+    assertEquals(result.id, aggregateAndEvent1.first.id)
+    assertEquals(result.name, "test-2")
+} else {
+    Assertions.fail<Any>("result is empty")
+}
 ```
 
 ## テーブル仕様
