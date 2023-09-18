@@ -29,7 +29,7 @@ suspend fun <T> CompletableFuture<T>.await(): T =
         }
     }
 
-class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>>(
+class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>>(
     private val underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>,
 ) : EventStoreAsync<AID, A, E> {
 
@@ -61,10 +61,8 @@ class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Even
     override suspend fun getLatestSnapshotById(
         clazz: Class<A>,
         aggregateId: AID,
-    ): Pair<A, Long>? = coroutineScope {
-        underlying.getLatestSnapshotById(clazz, aggregateId).await().map {
-            Pair(it.aggregate, it.version)
-        }.getOrNull()
+    ): A? = coroutineScope {
+        underlying.getLatestSnapshotById(clazz, aggregateId).await().getOrNull()
     }
 
     override suspend fun getEventsByIdSinceSequenceNumber(

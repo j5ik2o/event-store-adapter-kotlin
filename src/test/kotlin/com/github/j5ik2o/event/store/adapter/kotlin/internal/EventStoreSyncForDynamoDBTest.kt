@@ -63,7 +63,7 @@ class EventStoreSyncForDynamoDBTest {
                 eventStore.getLatestSnapshotById(UserAccount::class.java, id)
 
             if (result != null) {
-                assertEquals(result.first.id, aggregateAndEvent.first.id)
+                assertEquals(result.id, aggregateAndEvent.first.id)
                 LOGGER.info("result = {}", result)
             } else {
                 fail("result is null")

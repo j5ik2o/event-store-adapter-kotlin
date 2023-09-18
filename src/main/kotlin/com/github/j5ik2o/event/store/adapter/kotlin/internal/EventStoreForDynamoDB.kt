@@ -12,7 +12,7 @@ import kotlin.time.Duration
 import kotlin.time.toJavaDuration
 import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreForDynamoDB as JavaEventStoreForDynamoDB
 
-class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>>
+class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>>
 (private val underlying: JavaEventStoreForDynamoDB<AID, A, E>) : EventStore<AID, A, E> {
 
     override fun withKeepSnapshotCount(keepSnapshotCount: Long): EventStoreForDynamoDB<AID, A, E> {
@@ -40,10 +40,8 @@ class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<AID>, E : Event<AID
         return EventStoreForDynamoDB(updated)
     }
 
-    override fun getLatestSnapshotById(clazz: Class<A>, aggregateId: AID): Pair<A, Long>? {
-        return underlying.getLatestSnapshotById(clazz, aggregateId).map {
-            Pair(it.aggregate, it.version)
-        }.getOrNull()
+    override fun getLatestSnapshotById(clazz: Class<A>, aggregateId: AID): A? {
+        return underlying.getLatestSnapshotById(clazz, aggregateId).getOrNull()
     }
 
     override fun getEventsByIdSinceSequenceNumber(clazz: Class<E>, aggregateId: AID, sequenceNumber: Long): List<E> {
