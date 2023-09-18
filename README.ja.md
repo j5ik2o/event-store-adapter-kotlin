@@ -14,7 +14,7 @@
 
 `build.gradle.kts`に以下を追加してください。
 
-```kotiln
+```kotlin
 val version = "..."
 dependencies {
 // ...
