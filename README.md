@@ -12,7 +12,7 @@ This library(Kotlin wrapper for [j5ik2o/event-store-adapter-java](https://github
 
 Add the following to your `build.gradle.kts`.
 
-```kotiln
+```kotlin
 val version = "..."
 dependencies {
 // ...
