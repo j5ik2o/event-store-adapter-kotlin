@@ -26,12 +26,12 @@ class UserAccountRepositoryAsync
     }
 
     suspend fun findById(id: UserAccountId): UserAccount? {
-        val (userAccount, version) = eventStore
+        val userAccount = eventStore
             .getLatestSnapshotById(UserAccount::class.java, id) ?: return null
         val events = eventStore
             .getEventsByIdSinceSequenceNumber(
                 UserAccountEvent::class.java, id, userAccount.sequenceNumber + 1)
-        return UserAccount.replay(events, userAccount, version)
+        return UserAccount.replay(events, userAccount)
     }
 }
 ```
