@@ -8,6 +8,30 @@ This library(Kotlin wrapper for [j5ik2o/event-store-adapter-java](https://github
 
 [日本語](./README.ja.md)
 
+# Installation
+
+Add the following to your `build.gradle.kts`.
+
+```kotiln
+val version = "..."
+dependencies {
+// ...
+    implementation("com.github.j5ik2o:event-store-adapter-java:${version}")
+// ...
+}
+```
+
+Or add the following to your `build.gradle`.
+
+```groovy
+def version = "..."
+dependencies {
+// ...
+    implementation 'com.github.j5ik2o:event-store-adapter-java:${version}'
+// ...
+}
+```
+
 # Usage
 
 You can easily implement an Event Sourcing-enabled repository using EventStore.

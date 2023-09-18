@@ -9,6 +9,31 @@
 
 [English](./README.md)
 
+
+# 導入方法
+
+`build.gradle.kts`に以下を追加してください。
+
+```kotiln
+val version = "..."
+dependencies {
+// ...
+    implementation("com.github.j5ik2o:event-store-adapter-java:${version}")
+// ...
+}
+```
+
+もしくは`build.gradle`に以下を追加してください。
+
+```groovy
+def version = "..."
+dependencies {
+// ...
+    implementation 'com.github.j5ik2o:event-store-adapter-java:${version}'
+// ...
+}
+```
+
 # 使い方
 
 EventStoreを使えば、Event Sourcing対応リポジトリを簡単に実装できます。
