@@ -8,7 +8,7 @@ import com.github.j5ik2o.event.store.adapter.java.KeyResolver
 import com.github.j5ik2o.event.store.adapter.java.SnapshotSerializer
 import kotlin.time.Duration
 
-interface EventStoreOptions<This : EventStoreOptions<This, AID, A, E>, AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> {
+interface EventStoreOptions<This : EventStoreOptions<This, AID, A, E>, AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> {
 
     fun withKeepSnapshotCount(keepSnapshotCount: Long): This
 

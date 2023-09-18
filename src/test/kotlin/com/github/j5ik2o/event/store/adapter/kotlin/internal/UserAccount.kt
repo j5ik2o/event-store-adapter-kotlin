@@ -9,7 +9,7 @@ data class UserAccount private constructor(
     @JsonProperty("sequenceNumber") private var sequenceNumber: Long,
     @JsonProperty("name") val name: String,
     @JsonProperty("version") private var version: Long,
-) : Aggregate<UserAccountId> {
+) : Aggregate<UserAccount, UserAccountId> {
 
     fun applyEvent(event: UserAccountEvent): UserAccount {
         return if (event is UserAccountEvent.Renamed) {
@@ -44,19 +44,20 @@ data class UserAccount private constructor(
         return version
     }
 
+    override fun withVersion(version: Long): UserAccount {
+        return copy(version = version)
+    }
+
     companion object {
         fun replay(
             events: List<UserAccountEvent>,
             snapshot: UserAccount,
-            version: Long,
         ): UserAccount {
-            val userAccount = events.fold(snapshot) { obj: UserAccount, event: UserAccountEvent ->
+            return events.fold(snapshot) { obj: UserAccount, event: UserAccountEvent ->
                 obj.applyEvent(
                     event,
                 )
             }
-            userAccount.version = version
-            return userAccount
         }
 
         fun create(

@@ -7,13 +7,13 @@ import com.github.j5ik2o.event.store.adapter.kotlin.internal.EventStoreForDynamo
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreForDynamoDB as JavaEventStoreForDynamoDB
 
-interface EventStore<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> : EventStoreOptions<EventStore<AID, A, E>, AID, A, E> {
+interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> : EventStoreOptions<EventStore<AID, A, E>, AID, A, E> {
 
     companion object {
-        fun <AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> ofDynamoDB(underlying: JavaEventStoreForDynamoDB<AID, A, E>): EventStoreForDynamoDB<AID, A, E> {
+        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(underlying: JavaEventStoreForDynamoDB<AID, A, E>): EventStoreForDynamoDB<AID, A, E> {
             return EventStoreForDynamoDB(underlying)
         }
-        fun <AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> ofDynamoDB(
+        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(
             dynamoDbClient: DynamoDbClient,
             journalTableName: String,
             snapshotTableName: String,
@@ -37,7 +37,7 @@ interface EventStore<AID : AggregateId, A : Aggregate<AID>, E : Event<AID>> : Ev
     fun getLatestSnapshotById(
         clazz: Class<A>,
         aggregateId: AID,
-    ): Pair<A, Long>?
+    ): A?
 
     fun getEventsByIdSinceSequenceNumber(
         clazz: Class<E>,
