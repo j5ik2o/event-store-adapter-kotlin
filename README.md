@@ -4,7 +4,7 @@
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/event-store-adapter-kotlin)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-This library is designed to turn DynamoDB into an Event Store for Event Sourcing.
+This library(Kotlin wrapper for [j5ik2o/event-store-adapter-java](https://github.com/j5ik2o/event-store-adapter-java)) is designed to turn DynamoDB into an Event Store for Event Sourcing.
 
 [日本語](./README.ja.md)
 
