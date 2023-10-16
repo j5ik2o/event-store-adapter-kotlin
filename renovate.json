@@ -11,6 +11,11 @@
     {
       "matchDepTypes": ["devDependencies"],
       "automerge": true
+    },
+    {
+      "managers": ["gradle"],
+      "packageNames": ["com.diffplug.spotless"],
+      "enabled": false
     }
   ],
   "prHourlyLimit": 0,
