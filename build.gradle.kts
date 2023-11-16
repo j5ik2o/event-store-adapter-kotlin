@@ -26,7 +26,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers:1.19.2")
     testImplementation("org.testcontainers:junit-jupiter:1.19.2")
     testImplementation("org.testcontainers:localstack:1.19.2")
-    testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.+")
+    testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.16.+")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
