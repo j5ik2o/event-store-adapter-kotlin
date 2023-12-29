@@ -30,7 +30,7 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    implementation("com.github.j5ik2o:event-store-adapter-java:1.1.63")
+    implementation("com.github.j5ik2o:event-store-adapter-java:1.1.64")
     implementation("software.amazon.awssdk:dynamodb:2.22.7")
     implementation("de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0")
 }
