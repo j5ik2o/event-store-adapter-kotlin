@@ -28,7 +28,7 @@ dependencies {
     testImplementation("org.testcontainers:localstack:1.20.1")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.+")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     implementation("com.github.j5ik2o:event-store-adapter-java:1.1.174")
     implementation("software.amazon.awssdk:dynamodb:2.28.0")
