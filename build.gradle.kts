@@ -19,8 +19,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.1")
 
     testImplementation("ch.qos.logback:logback-classic:1.5.8")
     testImplementation("org.testcontainers:testcontainers:1.20.1")
