@@ -28,8 +28,8 @@ dependencies {
     testImplementation("org.testcontainers:localstack:1.20.4")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.+")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
     implementation("com.github.j5ik2o:event-store-adapter-java:1.1.174")
     implementation("software.amazon.awssdk:dynamodb:2.29.38")
     implementation("de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0")
