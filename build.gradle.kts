@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.register
+
 plugins {
     `java-library`
     `maven-publish`
@@ -14,7 +16,17 @@ extra["isReleaseVersion"] = !version.toString().endsWith("SNAPSHOT")
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://oss.sonatype.org/content/repositories/snapshots") }
+
+    // 認証付き snapshot リポジトリ
+    maven {
+        name = "sonatypeSnapshots"
+        url  = uri("https://central.sonatype.com/repository/maven-snapshots/")
+        credentials {
+            username = System.getenv("SONATYPE_USERNAME")
+            password = System.getenv("SONATYPE_PASSWORD")
+        }
+        mavenContent { snapshotsOnly() }
+    }
 }
 
 dependencies {
@@ -41,7 +53,7 @@ tasks {
         useJUnitPlatform()
     }
 
-    create<Copy>("javadocToDocsFolder") {
+    this.register<Copy>("javadocToDocsFolder") {
         from(javadoc)
         into("docs/javadoc")
     }
@@ -50,12 +62,12 @@ tasks {
         dependsOn("javadocToDocsFolder")
     }
 
-    create<Jar>("sourcesJar") {
+    this.register<Jar>("sourcesJar") {
         from(sourceSets.main.get().allJava)
         archiveClassifier.set("sources")
     }
 
-    create<Jar>("javadocJar") {
+    this.register<Jar>("javadocJar") {
         from(javadoc)
         archiveClassifier.set("javadoc")
     }
