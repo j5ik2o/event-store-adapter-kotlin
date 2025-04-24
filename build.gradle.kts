@@ -35,9 +35,9 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.2")
 
     testImplementation("ch.qos.logback:logback-classic:1.5.18")
-    testImplementation("org.testcontainers:testcontainers:1.20.6")
-    testImplementation("org.testcontainers:junit-jupiter:1.20.6")
-    testImplementation("org.testcontainers:localstack:1.20.6")
+    testImplementation("org.testcontainers:testcontainers:1.21.0")
+    testImplementation("org.testcontainers:junit-jupiter:1.21.0")
+    testImplementation("org.testcontainers:localstack:1.21.0")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.+")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
