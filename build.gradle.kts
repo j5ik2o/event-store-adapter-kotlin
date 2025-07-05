@@ -77,7 +77,7 @@ tasks {
     }
 
     withType<Wrapper> {
-        gradleVersion = "8.14.2"
+        gradleVersion = "8.14.3"
     }
 
     withType<JavaCompile> {
