@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 25
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew spotlessCheck --info
   test:
@@ -47,7 +47,7 @@ jobs:
           java-version: |
             11
             ${{ matrix.java }}
-            17
+            25
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test -PtestJavaVersion=${{ matrix.java }} --info
   ci-success:

@@ -2,13 +2,20 @@ package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
 
-class UserAccountRepositoryAsync(private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
-
-    suspend fun storeEvent(event: UserAccountEvent, version: Long) {
+class UserAccountRepositoryAsync(
+    private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>,
+) {
+    suspend fun storeEvent(
+        event: UserAccountEvent,
+        version: Long,
+    ) {
         eventStore.persistEvent(event, version)
     }
 
-    suspend fun storeEventAndSnapshot(event: UserAccountEvent, aggregate: UserAccount) {
+    suspend fun storeEventAndSnapshot(
+        event: UserAccountEvent,
+        aggregate: UserAccount,
+    ) {
         eventStore.persistEventAndSnapshot(event, aggregate)
     }
 

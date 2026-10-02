@@ -6,7 +6,7 @@ plugins {
     `maven-publish`
     signing
     kotlin("jvm") version "2.4.20"
-    id("com.diffplug.spotless") version "6.21.0"
+    id("com.diffplug.spotless") version "8.10.3"
     id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
 }
 
@@ -119,12 +119,6 @@ spotless {
     kotlin {
         target("**/*.kt")
         ktlint()
-            .userData(mapOf(
-                "experimental" to "true",
-                "indent_size" to "2",
-                "trim_trailing_whitespace" to "true",
-                "max_line_length" to "120"
-            ))
     }
 }
 

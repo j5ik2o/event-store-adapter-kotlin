@@ -15,6 +15,7 @@ import java.time.Instant
 )
 interface UserAccountEvent : Event<UserAccountId> {
     override fun getAggregateId(): UserAccountId
+
     override fun getSequenceNumber(): Long
 
     @JsonTypeName("created")
@@ -26,27 +27,16 @@ interface UserAccountEvent : Event<UserAccountId> {
         @JsonProperty("name") val name: String,
         @JsonProperty("occurredAt") private val occurredAt: Instant,
     ) : UserAccountEvent {
-
         @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-        override fun isCreated(): Boolean {
-            return true
-        }
+        override fun isCreated(): Boolean = true
 
-        override fun getId(): String {
-            return id
-        }
+        override fun getId(): String = id
 
-        override fun getAggregateId(): UserAccountId {
-            return aggregateId
-        }
+        override fun getAggregateId(): UserAccountId = aggregateId
 
-        override fun getSequenceNumber(): Long {
-            return sequenceNumber
-        }
+        override fun getSequenceNumber(): Long = sequenceNumber
 
-        override fun getOccurredAt(): Instant {
-            return occurredAt
-        }
+        override fun getOccurredAt(): Instant = occurredAt
     }
 
     @JsonTypeName("renamed")
@@ -59,24 +49,14 @@ interface UserAccountEvent : Event<UserAccountId> {
         @JsonProperty("occurredAt") private val occurredAt: Instant,
     ) : UserAccountEvent {
         @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-        override fun isCreated(): Boolean {
-            return false
-        }
+        override fun isCreated(): Boolean = false
 
-        override fun getId(): String {
-            return id
-        }
+        override fun getId(): String = id
 
-        override fun getAggregateId(): UserAccountId {
-            return aggregateId
-        }
+        override fun getAggregateId(): UserAccountId = aggregateId
 
-        override fun getSequenceNumber(): Long {
-            return sequenceNumber
-        }
+        override fun getSequenceNumber(): Long = sequenceNumber
 
-        override fun getOccurredAt(): Instant {
-            return occurredAt
-        }
+        override fun getOccurredAt(): Instant = occurredAt
     }
 }

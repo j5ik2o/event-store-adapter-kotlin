@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended", "workarounds:javaLTSVersions"],
   "labels": ["renovate"],
   "commitMessagePrefix": "chore(deps):",
   "platformAutomerge": true,
@@ -14,26 +14,19 @@
       "automerge": true
     },
     {
-      "description": "Foojay resolver 1.0.0 以降は Gradle の実行に Java 17 以上を要求する。CI の Java 11 ジョブと公開処理は Gradle を Java 11 で実行するため、実行 JVM の移行と Java 11 のテスト維持を検証するまでメジャー更新をブロックする。",
-      "matchPackageNames": ["org.gradle.toolchains.foojay-resolver-convention:org.gradle.toolchains.foojay-resolver-convention.gradle.plugin"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
-    },
-    {
-      "description": "JUnit 6+ requires Java 17, but this library compiles and tests against Java 11. Hold JUnit major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
-      "matchPackageNames": ["/^org\\.junit\\./"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
-    },
-    {
-      "description": "CI and publication run Gradle 8.3 on Java 11. Java 25 fails with Unsupported class file major version 69. Hold JDK major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
+      "description": "CI と公開処理で Gradle を実行する JDK は、継続して保守される LTS に限定する。許可する LTS の一覧は workarounds:javaLTSVersions プリセットに委ね、次の LTS もプリセット更新後に Renovate が提案できるようにする。",
       "matchPackageNames": ["java-jdk"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
+      "enabled": true
     },
     {
-      "description": "Spotless 8+ requires Java 17, but CI, publication, and the Java 11 test matrix run Gradle on Java 11. Hold Spotless major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
-      "matchPackageNames": ["com.diffplug.spotless:com.diffplug.spotless.gradle.plugin"],
+      "description": "公開物の Java 11 互換性と JDK 11 のテストを維持するため、コンパイル・テスト用の Java 11 toolchain は 11 系に固定する。Gradle 実行用 JDK の LTS メジャー更新にはこの制限を適用しない。",
+      "matchPackageNames": ["java-jdk"],
+      "matchCurrentValue": "/^11(?:\\.|$)/",
+      "allowedVersions": "/^11(?:\\.|$)/"
+    },
+    {
+      "description": "Gradle の実行 JVM は Java 25 に移行済みだが、テストは toolchain で JDK 11/17/19 を使用する。JUnit 6 以降はテスト実行 JVM に Java 17 以上を要求し、JDK 11 のテストと両立しないため、メジャー更新のブロックを維持する。",
+      "matchPackageNames": ["/^org\\.junit\\./"],
       "matchUpdateTypes": ["major"],
       "enabled": false
     }

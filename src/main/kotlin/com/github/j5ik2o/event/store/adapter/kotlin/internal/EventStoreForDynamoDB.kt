@@ -12,9 +12,9 @@ import kotlin.time.Duration
 import kotlin.time.toJavaDuration
 import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreForDynamoDB as JavaEventStoreForDynamoDB
 
-class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>>
-(private val underlying: JavaEventStoreForDynamoDB<AID, A, E>) : EventStore<AID, A, E> {
-
+class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>>(
+    private val underlying: JavaEventStoreForDynamoDB<AID, A, E>,
+) : EventStore<AID, A, E> {
     override fun withKeepSnapshotCount(keepSnapshotCount: Long): EventStoreForDynamoDB<AID, A, E> {
         val updated = underlying.withKeepSnapshotCount(keepSnapshotCount)
         return EventStoreForDynamoDB(updated)
@@ -40,19 +40,28 @@ class EventStoreForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<
         return EventStoreForDynamoDB(updated)
     }
 
-    override fun getLatestSnapshotById(clazz: Class<A>, aggregateId: AID): A? {
-        return underlying.getLatestSnapshotById(clazz, aggregateId).getOrNull()
-    }
+    override fun getLatestSnapshotById(
+        clazz: Class<A>,
+        aggregateId: AID,
+    ): A? = underlying.getLatestSnapshotById(clazz, aggregateId).getOrNull()
 
-    override fun getEventsByIdSinceSequenceNumber(clazz: Class<E>, aggregateId: AID, sequenceNumber: Long): List<E> {
-        return underlying.getEventsByIdSinceSequenceNumber(clazz, aggregateId, sequenceNumber)
-    }
+    override fun getEventsByIdSinceSequenceNumber(
+        clazz: Class<E>,
+        aggregateId: AID,
+        sequenceNumber: Long,
+    ): List<E> = underlying.getEventsByIdSinceSequenceNumber(clazz, aggregateId, sequenceNumber)
 
-    override fun persistEvent(event: E, version: Long) {
+    override fun persistEvent(
+        event: E,
+        version: Long,
+    ) {
         underlying.persistEvent(event, version)
     }
 
-    override fun persistEventAndSnapshot(event: E, aggregate: A) {
+    override fun persistEventAndSnapshot(
+        event: E,
+        aggregate: A,
+    ) {
         underlying.persistEventAndSnapshot(event, aggregate)
     }
 }

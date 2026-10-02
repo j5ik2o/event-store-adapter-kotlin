@@ -15,7 +15,6 @@ import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreForDynamoDB
  * @param E Event / イベント
  */
 interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> : EventStoreOptions<EventStore<AID, A, E>, AID, A, E> {
-
     companion object {
         /**
          * Create an instance of [EventStoreForDynamoDB]. / [EventStoreForDynamoDB]のインスタンスを作成します。
@@ -25,9 +24,9 @@ interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> :
          * @param E Event / イベント
          * @param underlying Underlying instance / 下位のインスタンス
          */
-        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(underlying: JavaEventStoreForDynamoDB<AID, A, E>): EventStoreForDynamoDB<AID, A, E> {
-            return EventStoreForDynamoDB(underlying)
-        }
+        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(
+            underlying: JavaEventStoreForDynamoDB<AID, A, E>,
+        ): EventStoreForDynamoDB<AID, A, E> = EventStoreForDynamoDB(underlying)
 
         /**
          * Create an instance of [EventStoreForDynamoDB]. / [EventStoreForDynamoDB]のインスタンスを作成します。
@@ -50,8 +49,8 @@ interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> :
             journalAidIndexName: String,
             snapshotAidIndexName: String,
             shardCount: Long,
-        ): EventStoreForDynamoDB<AID, A, E> {
-            return ofDynamoDB(
+        ): EventStoreForDynamoDB<AID, A, E> =
+            ofDynamoDB(
                 JavaEventStoreForDynamoDB.create(
                     dynamoDbClient,
                     journalTableName,
@@ -61,7 +60,6 @@ interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> :
                     shardCount,
                 ),
             )
-        }
     }
 
     /**
@@ -103,7 +101,10 @@ interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> :
      * @throws com.github.j5ik2o.event.store.adapter.java.SerializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
      * @throws com.github.j5ik2o.event.store.adapter.java.TransactionException if an error occurred during transaction / トランザクション中にエラーが発生した場合
      */
-    fun persistEvent(event: E, version: Long)
+    fun persistEvent(
+        event: E,
+        version: Long,
+    )
 
     /**
      * Persists an event and a snapshot. / イベントとスナップショットを永続化します。
