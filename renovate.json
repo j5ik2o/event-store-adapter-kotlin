@@ -20,8 +20,21 @@
       "enabled": false
     },
     {
-      "managers": ["gradle"],
-      "packageNames": ["com.diffplug.spotless"],
+      "description": "JUnit 6+ requires Java 17, but this library compiles and tests against Java 11. Hold JUnit major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
+      "matchPackageNames": ["/^org\\.junit\\./"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "CI and publication run Gradle 8.3 on Java 11. Java 25 fails with Unsupported class file major version 69. Hold JDK major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
+      "matchPackageNames": ["java-jdk"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Spotless 8+ requires Java 17, but CI, publication, and the Java 11 test matrix run Gradle on Java 11. Hold Spotless major updates until the Gradle runtime JVM migration and preservation of Java 11 testing are addressed together (#807).",
+      "matchPackageNames": ["com.diffplug.spotless:com.diffplug.spotless.gradle.plugin"],
+      "matchUpdateTypes": ["major"],
       "enabled": false
     }
   ],
