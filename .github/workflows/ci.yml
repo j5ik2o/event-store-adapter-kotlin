@@ -23,11 +23,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
-      - uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.3
-          arguments: spotlessCheck --info
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew spotlessCheck --info
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -45,11 +43,13 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
-      - uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.3
-          arguments: test --info
+          # Install compilation/test toolchains; the last JDK runs Gradle.
+          java-version: |
+            11
+            ${{ matrix.java }}
+            17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test -PtestJavaVersion=${{ matrix.java }} --info
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest

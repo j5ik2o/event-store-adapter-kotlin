@@ -1,4 +1,5 @@
 import org.gradle.kotlin.dsl.register
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `java-library`
@@ -33,6 +34,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     testImplementation("ch.qos.logback:logback-classic:1.6.5")
     testImplementation("org.testcontainers:testcontainers:1.21.4")
@@ -47,10 +49,20 @@ dependencies {
     implementation("de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0")
 }
 
+val testJavaVersion = providers.gradleProperty("testJavaVersion").map(String::toInt).orElse(11)
+val testJavaLauncher = javaToolchains.launcherFor {
+    languageVersion.set(testJavaVersion.map(JavaLanguageVersion::of))
+}
+
 tasks {
 
     withType<Test> {
         useJUnitPlatform()
+        javaLauncher.set(testJavaLauncher)
+        doFirst {
+            val launcher = javaLauncher.get()
+            logger.lifecycle("Test JVM: Java ${launcher.metadata.languageVersion} (${launcher.executablePath})")
+        }
     }
 
     this.register<Copy>("javadocToDocsFolder") {
@@ -77,10 +89,11 @@ tasks {
     }
 
     withType<Wrapper> {
-        gradleVersion = "8.14.5"
+        gradleVersion = "9.8.0"
     }
 
     withType<JavaCompile> {
+        options.release.set(11)
         options.compilerArgs.add("-Xlint:deprecation")
         dependsOn(spotlessApply)
     }
@@ -93,6 +106,9 @@ java {
 
 kotlin {
     jvmToolchain(11)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+    }
 }
 
 spotless {
@@ -169,4 +185,3 @@ signing {
     useInMemoryPgpKeys(signingKey, signingPassword)
     sign(publishing.publications["mavenJava"])
 }
-

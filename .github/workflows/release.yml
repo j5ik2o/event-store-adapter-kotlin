@@ -26,8 +26,8 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
-      - uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.3
-          arguments: publishToSonatype closeAndReleaseSonatypeStagingRepository --info --stacktrace
+          java-version: |
+            11
+            17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository --info --stacktrace
