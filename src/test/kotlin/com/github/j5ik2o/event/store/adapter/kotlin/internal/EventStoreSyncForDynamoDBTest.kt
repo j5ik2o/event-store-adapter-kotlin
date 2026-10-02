@@ -14,7 +14,6 @@ import kotlin.test.junit5.JUnit5Asserter.fail
 
 @Testcontainers
 class EventStoreSyncForDynamoDBTest {
-
     companion object {
         val LOGGER: Logger = LoggerFactory.getLogger(EventStoreSyncForDynamoDBTest::class.java)
         const val JOURNAL_TABLE_NAME = "journal"
@@ -30,44 +29,46 @@ class EventStoreSyncForDynamoDBTest {
         LocalStackContainer(localstackImage).withServices("dynamodb")
 
     @Test
-    fun persistAndGet() = runTest {
-        DynamoDBSyncUtils.createDynamoDbClient(localstack).use { client ->
-            DynamoDBSyncUtils.createJournalTable(
-                client,
-                JOURNAL_TABLE_NAME,
-                JOURNAL_AID_INDEX_NAME,
-            )
-            DynamoDBSyncUtils.createSnapshotTable(
-                client,
-                SNAPSHOT_TABLE_NAME,
-                SNAPSHOT_AID_INDEX_NAME,
-            )
-            client.listTables().tableNames().forEach(System.out::println)
+    fun persistAndGet() =
+        runTest {
+            DynamoDBSyncUtils.createDynamoDbClient(localstack).use { client ->
+                DynamoDBSyncUtils.createJournalTable(
+                    client,
+                    JOURNAL_TABLE_NAME,
+                    JOURNAL_AID_INDEX_NAME,
+                )
+                DynamoDBSyncUtils.createSnapshotTable(
+                    client,
+                    SNAPSHOT_TABLE_NAME,
+                    SNAPSHOT_AID_INDEX_NAME,
+                )
+                client.listTables().tableNames().forEach(System.out::println)
 
-            val eventStore = EventStore.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
-                client,
-                JOURNAL_TABLE_NAME,
-                SNAPSHOT_TABLE_NAME,
-                JOURNAL_AID_INDEX_NAME,
-                SNAPSHOT_AID_INDEX_NAME,
-                32,
-            )
+                val eventStore =
+                    EventStore.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
+                        client,
+                        JOURNAL_TABLE_NAME,
+                        SNAPSHOT_TABLE_NAME,
+                        JOURNAL_AID_INDEX_NAME,
+                        SNAPSHOT_AID_INDEX_NAME,
+                        32,
+                    )
 
-            val id = UserAccountId(IdGenerator.generate().toString())
-            val aggregateAndEvent = UserAccount.create(id, "test-1")
+                val id = UserAccountId(IdGenerator.generate().toString())
+                val aggregateAndEvent = UserAccount.create(id, "test-1")
 
-            eventStore
-                .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
+                eventStore
+                    .persistEventAndSnapshot(aggregateAndEvent.second, aggregateAndEvent.first)
 
-            val result =
-                eventStore.getLatestSnapshotById(UserAccount::class.java, id)
+                val result =
+                    eventStore.getLatestSnapshotById(UserAccount::class.java, id)
 
-            if (result != null) {
-                assertEquals(result.id, aggregateAndEvent.first.id)
-                LOGGER.info("result = {}", result)
-            } else {
-                fail("result is null")
+                if (result != null) {
+                    assertEquals(result.id, aggregateAndEvent.first.id)
+                    LOGGER.info("result = {}", result)
+                } else {
+                    fail("result is null")
+                }
             }
         }
-    }
 }

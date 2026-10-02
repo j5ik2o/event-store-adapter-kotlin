@@ -32,7 +32,6 @@ suspend fun <T> CompletableFuture<T>.await(): T =
 class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>>(
     private val underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>,
 ) : EventStoreAsync<AID, A, E> {
-
     override fun withKeepSnapshotCount(keepSnapshotCount: Long): EventStoreAsyncForDynamoDB<AID, A, E> {
         val updated = underlying.withKeepSnapshotCount(keepSnapshotCount)
         return EventStoreAsyncForDynamoDB(updated)
@@ -61,26 +60,33 @@ class EventStoreAsyncForDynamoDB<AID : AggregateId, A : Aggregate<A, AID>, E : E
     override suspend fun getLatestSnapshotById(
         clazz: Class<A>,
         aggregateId: AID,
-    ): A? = coroutineScope {
-        underlying.getLatestSnapshotById(clazz, aggregateId).await().getOrNull()
-    }
+    ): A? =
+        coroutineScope {
+            underlying.getLatestSnapshotById(clazz, aggregateId).await().getOrNull()
+        }
 
     override suspend fun getEventsByIdSinceSequenceNumber(
         clazz: Class<E>,
         aggregateId: AID,
         sequenceNumber: Long,
-    ): List<E> = coroutineScope {
-        underlying.getEventsByIdSinceSequenceNumber(clazz, aggregateId, sequenceNumber).await()
-    }
+    ): List<E> =
+        coroutineScope {
+            underlying.getEventsByIdSinceSequenceNumber(clazz, aggregateId, sequenceNumber).await()
+        }
 
-    override suspend fun persistEvent(event: E, version: Long): Unit = coroutineScope {
-        underlying.persistEvent(event, version).await()
-    }
+    override suspend fun persistEvent(
+        event: E,
+        version: Long,
+    ): Unit =
+        coroutineScope {
+            underlying.persistEvent(event, version).await()
+        }
 
     override suspend fun persistEventAndSnapshot(
         event: E,
         aggregate: A,
-    ): Unit = coroutineScope {
-        underlying.persistEventAndSnapshot(event, aggregate).await()
-    }
+    ): Unit =
+        coroutineScope {
+            underlying.persistEventAndSnapshot(event, aggregate).await()
+        }
 }

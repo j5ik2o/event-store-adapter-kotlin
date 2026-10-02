@@ -14,8 +14,8 @@ import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreAsyncForDyn
  * @param A Aggregate / 集約
  * @param E Event / イベント
  */
-interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> : EventStoreOptions<EventStoreAsync<AID, A, E>, AID, A, E> {
-
+interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> :
+    EventStoreOptions<EventStoreAsync<AID, A, E>, AID, A, E> {
     companion object {
         /**
          * Create an instance of [EventStoreAsyncForDynamoDB]. / [EventStoreAsyncForDynamoDB]のインスタンスを作成します。
@@ -26,9 +26,9 @@ interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AI
          * @param underlying Underlying instance / 下位のインスタンス
          * @return [EventStoreAsyncForDynamoDB] instance / [EventStoreAsyncForDynamoDB]のインスタンス
          */
-        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>): EventStoreAsyncForDynamoDB<AID, A, E> {
-            return EventStoreAsyncForDynamoDB(underlying)
-        }
+        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(
+            underlying: JavaEventStoreAsyncForDynamoDB<AID, A, E>,
+        ): EventStoreAsyncForDynamoDB<AID, A, E> = EventStoreAsyncForDynamoDB(underlying)
 
         /**
          * Create an instance of [EventStoreAsyncForDynamoDB]. / [EventStoreAsyncForDynamoDB]のインスタンスを作成します。
@@ -51,8 +51,8 @@ interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AI
             journalAidIndexName: String,
             snapshotAidIndexName: String,
             shardCount: Long,
-        ): EventStoreAsyncForDynamoDB<AID, A, E> {
-            return ofDynamoDB(
+        ): EventStoreAsyncForDynamoDB<AID, A, E> =
+            ofDynamoDB(
                 JavaEventStoreAsyncForDynamoDB.create(
                     dynamoDbAsyncClient,
                     journalTableName,
@@ -62,7 +62,6 @@ interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AI
                     shardCount,
                 ),
             )
-        }
     }
 
     /**
@@ -104,7 +103,10 @@ interface EventStoreAsync<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AI
      * @throws com.github.j5ik2o.event.store.adapter.java.SerializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
      * @throws com.github.j5ik2o.event.store.adapter.java.TransactionException if an error occurred during transaction / トランザクション中にエラーが発生した場合
      */
-    suspend fun persistEvent(event: E, version: Long)
+    suspend fun persistEvent(
+        event: E,
+        version: Long,
+    )
 
     /**
      * Persists an event and a snapshot. / イベントとスナップショットを永続化します。

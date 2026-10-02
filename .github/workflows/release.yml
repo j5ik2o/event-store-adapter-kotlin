@@ -28,6 +28,6 @@ jobs:
           distribution: temurin
           java-version: |
             11
-            17
+            25
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository --info --stacktrace

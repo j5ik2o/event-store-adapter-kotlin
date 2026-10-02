@@ -8,16 +8,9 @@ data class UserAccountId(
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private val typeName: String = "user-account",
 ) : AggregateId {
+    override fun getTypeName(): String = typeName
 
-    override fun getTypeName(): String {
-        return typeName
-    }
+    override fun getValue(): String = value
 
-    override fun getValue(): String {
-        return value
-    }
-
-    override fun asString(): String {
-        return String.format("%s-%s", getTypeName(), getValue())
-    }
+    override fun asString(): String = String.format("%s-%s", getTypeName(), getValue())
 }
