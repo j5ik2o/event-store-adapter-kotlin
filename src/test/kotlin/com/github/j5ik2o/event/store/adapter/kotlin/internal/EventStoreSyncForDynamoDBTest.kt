@@ -5,9 +5,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.localstack.LocalStackContainer
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
 import kotlin.test.junit5.JUnit5Asserter.fail
@@ -27,7 +27,7 @@ class EventStoreSyncForDynamoDBTest {
 
     @Container
     private val localstack: LocalStackContainer =
-        LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+        LocalStackContainer(localstackImage).withServices("dynamodb")
 
     @Test
     fun persistAndGet() = runTest {

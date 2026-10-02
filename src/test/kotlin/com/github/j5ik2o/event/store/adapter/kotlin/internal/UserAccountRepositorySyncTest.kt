@@ -4,9 +4,9 @@ import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
-import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.localstack.LocalStackContainer
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
 
@@ -21,7 +21,7 @@ class UserAccountRepositorySyncTest {
     private val localstackImage: DockerImageName = DockerImageName.parse("localstack/localstack:2.1.0")
 
     @Container
-    private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+    private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices("dynamodb")
 
     @Test
     fun repositoryStoreAndFindById() = runTest {

@@ -1,6 +1,6 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
-import org.testcontainers.containers.localstack.LocalStackContainer
+import org.testcontainers.localstack.LocalStackContainer
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest
