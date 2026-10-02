@@ -14,6 +14,12 @@
       "automerge": true
     },
     {
+      "description": "Foojay resolver 1.0.0 以降は Gradle の実行に Java 17 以上を要求する。CI の Java 11 ジョブと公開処理は Gradle を Java 11 で実行するため、実行 JVM の移行と Java 11 のテスト維持を検証するまでメジャー更新をブロックする。",
+      "matchPackageNames": ["org.gradle.toolchains.foojay-resolver-convention:org.gradle.toolchains.foojay-resolver-convention.gradle.plugin"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "managers": ["gradle"],
       "packageNames": ["com.diffplug.spotless"],
       "enabled": false
