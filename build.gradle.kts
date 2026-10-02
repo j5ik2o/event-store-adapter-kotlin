@@ -5,7 +5,7 @@ plugins {
     `java-library`
     `maven-publish`
     signing
-    kotlin("jvm") version "2.4.10"
+    kotlin("jvm") version "2.4.20"
     id("com.diffplug.spotless") version "6.21.0"
     id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
 }
@@ -37,15 +37,16 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     testImplementation("ch.qos.logback:logback-classic:1.6.5")
-    testImplementation("org.testcontainers:testcontainers:1.21.4")
-    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
-    testImplementation("org.testcontainers:localstack:1.21.4")
+    testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.5"))
+    testImplementation("org.testcontainers:testcontainers")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-localstack")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.+")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     implementation("com.github.j5ik2o:event-store-adapter-java:1.1.174")
-    implementation("software.amazon.awssdk:dynamodb:2.54.3")
+    implementation("software.amazon.awssdk:dynamodb:2.55.10")
     implementation("de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0")
 }
 

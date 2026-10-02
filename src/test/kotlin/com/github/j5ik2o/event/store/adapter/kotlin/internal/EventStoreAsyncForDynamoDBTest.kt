@@ -10,9 +10,9 @@ import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.localstack.LocalStackContainer
 import org.testcontainers.utility.DockerImageName
 import kotlin.test.assertEquals
 import kotlin.test.junit5.JUnit5Asserter.fail
@@ -33,7 +33,7 @@ class EventStoreAsyncForDynamoDBTest {
     private val localstackImage: DockerImageName = DockerImageName.parse("localstack/localstack:2.1.0")
 
     @Container
-    private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices(LocalStackContainer.Service.DYNAMODB)
+    private val localstack: LocalStackContainer = LocalStackContainer(localstackImage).withServices("dynamodb")
 
     private fun testTimeFactor(): Float = (System.getenv("TEST_TIME_FACTOR") ?: "1").toFloat()
     private fun timeout() = (10 * testTimeFactor()).toInt().seconds
