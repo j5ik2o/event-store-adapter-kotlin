@@ -1,31 +1,41 @@
-#! /usr/bin/env python3
-# -*- coding: utf-8 -*-
-import sys
-import csv
+#!/usr/bin/env python3
+"""Determine the level from git log --format='%s%x1f%b%x1e'."""
+
 import re
+import sys
 
-commit_messages = {'BREAKING CHANGE': 0, 'build': 0, 'ci': 0, 'feat': 0, 'fix': 0, 'docs': 0, 'style': 0, 'refactor': 0, 'perf': 0, 'test': 0, 'revert': 0, 'chore': 0}
 
-rules = {'major': ['perf', 'BREAKING CHANGE'], 'minor': ['feat', 'revert'], 'patch': ['build', 'ci', 'fix', 'docs', 'style', 'refactor', 'chore', 'test']}
+SUBJECT = re.compile(r"^([a-z]+)(?:\([^\r\n]*\))?(!)?:")
+BREAKING = re.compile(r"^BREAKING(?: CHANGE|-CHANGE):", re.MULTILINE)
 
-cin = csv.reader(sys.stdin, delimiter="\t")
 
-def match_append(key, row):
-    r = re.match(f"^{key}(.*)?\: (.*)", row[2])
-    if r:
-        commit_messages[key]+=1
+def semver_level(commits):
+    level = None
+    for record in commits.split("\x1e"):
+        if not record.strip():
+            continue
+        subject, body = record.lstrip("\r\n").split("\x1f", 1)
+        match = SUBJECT.match(subject)
+        if BREAKING.match(subject) or BREAKING.search(body) or (match and match.group(2)):
+            return "major"
+        if match:
+            if match.group(1) in ("feat", "revert"):
+                level = "minor"
+            elif level is None:
+                level = "patch"
+    if level is None:
+        raise ValueError("No eligible commits to determine a version level")
+    return level
 
-for row in cin:
-    for key in commit_messages.keys():
-        match_append(key, row)
 
-if sum(commit_messages.values()) > 0:
-    for k,v in rules.items():
-        sum = 0
-        for t in v:
-            sum += commit_messages[t]
-        if sum > 0:
-            print(k)
-            break
-else:
-    sys.exit(-1)
+def main():
+    try:
+        print(semver_level(sys.stdin.read()))
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
