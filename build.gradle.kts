@@ -137,8 +137,8 @@ publishing {
             pom {
                 name.set(project.name)
                 packaging = "jar"
-                description.set("Event Store Adapter for Java")
-                url.set("https://github.com/j5ik2o/event-store-adapter-java")
+                description.set("Event Store Adapter for Kotlin")
+                url.set("https://github.com/j5ik2o/event-store-adapter-kotlin")
                 licenses {
                     license {
                         name.set("The MIT License")
@@ -153,9 +153,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git@github.com:j5ik2o/event-store-adapter-java.git")
-                    developerConnection.set("scm:git:git@github.com:j5ik2o/event-store-adapter-java.git")
-                    url.set("https://github.com/j5ik2o/event-store-adapter-java")
+                    connection.set("scm:git:git@github.com:j5ik2o/event-store-adapter-kotlin.git")
+                    developerConnection.set("scm:git:git@github.com:j5ik2o/event-store-adapter-kotlin.git")
+                    url.set("https://github.com/j5ik2o/event-store-adapter-kotlin")
                 }
             }
         }
