@@ -20,6 +20,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+      - name: Verify conformance data v1.0.0
+        run: |
+          python3 tools/conformance/manifest.py verify
+          echo "61c26614dbbfba88eebce72cc1d2b0220218839e74dcfb64c19268f7ee2302ce  conformance/manifest.json" | sha256sum -c -
       - run: python3 -m unittest discover -s .github/tests -v
       - uses: actions/setup-go@v6
         with:
