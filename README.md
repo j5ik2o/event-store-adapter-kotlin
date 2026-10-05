@@ -1,7 +1,7 @@
 # event-store-adapter-kotlin
 
 [![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.j5ik2o/event-store-adapter-kotlin)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![](https://tokei.rs/b1/github/j5ik2o/event-store-adapter-kotlin)](https://github.com/XAMPPRocky/tokei)
@@ -18,7 +18,7 @@ Add the following to your `build.gradle.kts`.
 val version = "..."
 dependencies {
 // ...
-    implementation("com.github.j5ik2o:event-store-adapter-java:${version}")
+    implementation("io.github.j5ik2o:event-store-adapter-kotlin:${version}")
 // ...
 }
 ```
@@ -29,7 +29,7 @@ Or add the following to your `build.gradle`.
 def version = "..."
 dependencies {
 // ...
-    implementation 'com.github.j5ik2o:event-store-adapter-java:${version}'
+    implementation 'io.github.j5ik2o:event-store-adapter-kotlin:${version}'
 // ...
 }
 ```
