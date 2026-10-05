@@ -29,7 +29,7 @@ Or add the following to your `build.gradle`.
 def version = "..."
 dependencies {
 // ...
-    implementation 'io.github.j5ik2o:event-store-adapter-kotlin:${version}'
+    implementation "io.github.j5ik2o:event-store-adapter-kotlin:${version}"
 // ...
 }
 ```
