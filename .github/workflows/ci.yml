@@ -25,7 +25,7 @@ jobs:
           python3 tools/conformance/manifest.py verify
           echo "61c26614dbbfba88eebce72cc1d2b0220218839e74dcfb64c19268f7ee2302ce  conformance/manifest.json" | sha256sum -c -
       - run: python3 -m unittest discover -s .github/tests -v
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.27.1"
           cache: false
