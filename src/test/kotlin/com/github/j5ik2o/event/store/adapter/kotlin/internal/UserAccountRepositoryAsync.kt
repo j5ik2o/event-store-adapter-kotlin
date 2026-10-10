@@ -1,27 +1,27 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.internal
 
+import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope
 import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import kotlin.jvm.optionals.getOrNull
 
 class UserAccountRepositoryAsync(
-    private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>,
+    private val eventStore: EventStoreAsync<UserAccountEvent, UserAccount>,
 ) {
-    suspend fun storeEvent(
-        event: UserAccountEvent,
-        version: Long,
-    ) {
-        eventStore.persistEvent(event, version)
-    }
+    suspend fun storeEvent(event: EventEnvelope<UserAccountEvent>) = eventStore.persistEvent(event)
 
     suspend fun storeEventAndSnapshot(
-        event: UserAccountEvent,
-        aggregate: UserAccount,
-    ) {
-        eventStore.persistEventAndSnapshot(event, aggregate)
-    }
+        event: EventEnvelope<UserAccountEvent>,
+        snapshot: SnapshotEnvelope<UserAccount>,
+    ) = eventStore.persistEventAndSnapshot(event, snapshot)
 
-    suspend fun findById(id: UserAccountId): UserAccount? {
-        val userAccount = eventStore.getLatestSnapshotById(UserAccount::class.java, id) ?: return null
-        val events = eventStore.getEventsByIdSinceSequenceNumber(UserAccountEvent::class.java, id, userAccount.sequenceNumber + 1)
-        return UserAccount.replay(events, userAccount)
+    suspend fun findById(id: AggregateId): UserAccount? {
+        val read = eventStore.getLatestSnapshotById(id) ?: return null
+        val snapshot = read.snapshot().getOrNull()
+        val events = eventStore.getEventsByIdSinceSeqNr(id, (snapshot?.seqNr() ?: 0L) + 1)
+        val replayedSeqNr = events.lastOrNull()?.seqNr() ?: snapshot?.seqNr() ?: 0L
+        check(replayedSeqNr >= read.headSeqNr()) { "Replay has not reached the observed head" }
+        return UserAccount.replay(events, snapshot?.aggregate())
     }
 }

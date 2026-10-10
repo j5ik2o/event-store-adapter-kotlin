@@ -2,107 +2,102 @@
 
 [![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin)
-[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![](https://tokei.rs/b1/github/j5ik2o/event-store-adapter-kotlin)](https://github.com/XAMPPRocky/tokei)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit/)
 
-This library(Kotlin wrapper for [j5ik2o/event-store-adapter-java](https://github.com/j5ik2o/event-store-adapter-java)) is designed to turn DynamoDB into an Event Store for CQRS/Event Sourcing.
+A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory and DynamoDB storage and suspending operations. [日本語](README.ja.md)
 
-[日本語](./README.ja.md)
+This source makes a breaking API and storage-layout cutover to the [common contract](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md), revision 4. It depends on Java distribution `2.0.0-SNAPSHOT`; that distribution version is separate from the contract revision. A formal Kotlin release has not been made by this change, and the Kotlin version file is unchanged. See the [migration guide](docs/MIGRATION.md).
 
-# Installation
+## Installation
 
-Add the following to your `build.gradle.kts`.
+Choose a Kotlin build that contains this cutover. The snapshot repository is required while the Java dependency is a snapshot. The Java public types are exported through the Kotlin library's Gradle `api` dependency.
 
 ```kotlin
-val version = "..."
+repositories {
+    mavenCentral()
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+}
+val adapterVersion = "..." // Select a build containing this API cutover.
 dependencies {
-// ...
-    implementation("io.github.j5ik2o:event-store-adapter-kotlin:${version}")
-// ...
+    implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
 ```
 
-Or add the following to your `build.gradle`.
+## Usage
 
-```groovy
-def version = "..."
-dependencies {
-// ...
-    implementation "io.github.j5ik2o:event-store-adapter-kotlin:${version}"
-// ...
-}
-```
-
-# Usage
-
-You can easily implement an Event Sourcing-enabled repository using EventStore.
+Payload and aggregate types do not implement library interfaces. Build envelopes using the Java `core` types; serializers are selected when creating a store. The following example uses both memory factories, all four operations, and the asynchronous DynamoDB factory.
 
 ```kotlin
-class UserAccountRepositoryAsync
-  (private val eventStore: EventStoreAsync<UserAccountId, UserAccount, UserAccountEvent>) {
+import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.JsonPayloadSerializer
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope
+import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbTableConfig
+import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import java.time.Instant
 
-    suspend fun storeEvent(event: UserAccountEvent, version: Long) {
-        eventStore.persistEvent(event, version)
-    }
+val config = EventStoreConfig.builder<String, String>()
+    .payloadSerializer(JsonPayloadSerializer.of(String::class.java))
+    .snapshotSerializer(JsonPayloadSerializer.of(String::class.java))
+    .build()
+val storage = MemoryStorage.create()
+val sync = EventStore.ofMemory(storage, config)
+val async = EventStoreAsync.ofMemory(storage, config)
+val id = AggregateId.of("Account", "1")
 
-    suspend fun storeEventAndSnapshot(event: UserAccountEvent, aggregate: UserAccount) {
-        eventStore.persistEventAndSnapshot(event, aggregate)
-    }
+suspend fun appendAndRead() {
+    check(async.getLatestSnapshotById(id) == null)
+    val first = EventEnvelope.builder<String>()
+        .aggregateId(id).seqNr(1)
+        .occurredAt(Instant.parse("2026-10-10T00:00:00.123456789Z"))
+        .manifest("account-name-v1").payload("Alice").build()
+    async.persistEvent(first)
+    val headOnly = requireNotNull(sync.getLatestSnapshotById(id))
+    check(headOnly.snapshot().isEmpty)
+    check(headOnly.headSeqNr() == 1L)
 
-    suspend fun findById(id: UserAccountId): UserAccount? {
-        val userAccount = eventStore
-            .getLatestSnapshotById(UserAccount::class.java, id) ?: return null
-        val events = eventStore
-            .getEventsByIdSinceSequenceNumber(
-                UserAccountEvent::class.java, id, userAccount.sequenceNumber + 1)
-        return UserAccount.replay(events, userAccount)
-    }
+    val second = EventEnvelope.builder<String>()
+        .aggregateId(id).seqNr(2)
+        .occurredAt(Instant.parse("2026-10-10T00:00:01.123456789Z"))
+        .manifest("account-name-v1").payload("Bob").build()
+    val snapshot = SnapshotEnvelope.builder<String>()
+        .aggregate("Bob").seqNr(2).manifest("account-state-v1").build()
+    async.persistEventAndSnapshot(second, snapshot)
+    val read = requireNotNull(async.getLatestSnapshotById(id))
+    check(read.headSeqNr() == 2L)
+    check(read.snapshot().orElseThrow().aggregate() == "Bob")
+    check(async.getEventsByIdSinceSeqNr(id, 1).map { it.seqNr() } == listOf(1L, 2L))
+}
+
+suspend fun dynamoDbStore(client: DynamoDbAsyncClient): EventStoreAsync<String, String> {
+    val tables = DynamoDbTableConfig.builder()
+        .journalTableName("account-journal")
+        .snapshotTableName("account-snapshot")
+        .headTableName("account-head")
+        .snapshotAidIndexName("active-history")
+        .build()
+    return EventStoreAsync.ofDynamoDB(client, tables, config)
 }
 ```
 
-The following is an example of the repository usage.
+For synchronous DynamoDB use `EventStore.ofDynamoDB(client, tables, config)` with a `DynamoDbClient`. Provision three independent tables before creating either store. Clients belong to the caller; stop using them only after outstanding requests reach their terminal state. Reuse a `MemoryStorage` to share records and its immutable retention settings; separate storage instances are independent.
 
-```kotlin
-val eventStore = EventStoreAsync.ofDynamoDB<UserAccountId, UserAccount, UserAccountEvent>(
-    client,
-    JOURNAL_TABLE_NAME,
-    SNAPSHOT_TABLE_NAME,
-    JOURNAL_AID_INDEX_NAME,
-    SNAPSHOT_AID_INDEX_NAME,
-    32,
-)
-val userAccountRepository = UserAccountRepositoryAsync(eventStore)
+`getLatestSnapshotById` returns null only when the aggregate head is absent. A present `SnapshotReadResult` can have no snapshot, or a snapshot at a different sequence from its `headSeqNr()`. Replay starts at snapshot sequence + 1, or 1 if no snapshot exists. Event reads include the starting sequence and return every matching envelope in ascending order. Check that replay reaches the observed head. DynamoDB reads the head and current snapshot non-atomically, with strong consistency per item; a newer snapshot can legitimately be ahead of the observed head.
 
-val id = UserAccountId(IdGenerator.generate().toString())
+Retention is set on `MemoryStorage.create(RetentionPolicy.delete(n))` or `DynamoDbTableConfig.builder().retentionPolicy(...)`. No retention policy means only the current snapshot. Memory supports deletion; DynamoDB also supports `RetentionPolicy.ttl(n, graceSeconds)`. Retention failure is logged and can be observed through `EventStoreConfig.retentionFailureListener`; it does not undo a committed append.
 
-val aggregateAndEvent1 = UserAccount.create(id, "test-1")
-val aggregate1 = aggregateAndEvent1.first
+The Java `core` exception types preserve five classifications: `OptimisticLockException`, `ContractViolationException`, `SerializationException`, `ConfigurationException`, and `StorageException`. Contract violations retain `rule()` and `seqNr()`; wrapped causes are preserved. Suspending factories and operations use `kotlinx.coroutines.future.await`. Cancelling the caller cancels the awaited Java result; an already submitted storage request can still finish or commit. Await its independent terminal state before releasing caller-owned resources.
 
-userAccountRepository.storeEventAndSnapshot(aggregateAndEvent1.second, aggregate1)
+Executable repository examples are in [synchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt) and [asynchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt) form.
 
-val aggregateAndEvent2 = aggregate1.changeName("test-2")
+## Storage and verification
 
-userAccountRepository.storeEvent(aggregateAndEvent2.second, aggregateAndEvent2.first.version)
+See the [table schema](docs/DATABASE_SCHEMA.md) and [migration guide](docs/MIGRATION.md). Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
 
-val result = userAccountRepository.findById(id)
+## License
 
-if (result != null) {
-    assertEquals(result.id, aggregateAndEvent1.first.id)
-    assertEquals(result.name, "test-2")
-} else {
-    Assertions.fail<Any>("result is empty")
-}
-```
-
-## Table Specifications
-
-See [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md).
-
-## License.
-
-MIT License. See [LICENSE](LICENSE) for details.
-
-## Links
-
-- [Common Documents](https://github.com/j5ik2o/event-store-adapter)
+[MIT](https://opensource.org/license/mit/).

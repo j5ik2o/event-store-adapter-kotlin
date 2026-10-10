@@ -1,122 +1,51 @@
 package com.github.j5ik2o.event.store.adapter.kotlin
 
-import com.github.j5ik2o.event.store.adapter.java.Aggregate
-import com.github.j5ik2o.event.store.adapter.java.AggregateId
-import com.github.j5ik2o.event.store.adapter.java.Event
-import com.github.j5ik2o.event.store.adapter.kotlin.internal.EventStoreForDynamoDB
+import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotReadResult
+import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbEventStore
+import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbTableConfig
+import com.github.j5ik2o.event.store.adapter.java.memory.MemoryEventStore
+import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage
+import com.github.j5ik2o.event.store.adapter.kotlin.internal.JavaEventStoreAdapter
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
-import com.github.j5ik2o.event.store.adapter.java.internal.EventStoreForDynamoDB as JavaEventStoreForDynamoDB
+import com.github.j5ik2o.event.store.adapter.java.core.EventStore as JavaEventStore
 
-/**
- * Represents an event store. / イベントストアを表します。
- *
- * @param AID Aggregate ID / 集約ID
- * @param A Aggregate / 集約
- * @param E Event / イベント
- */
-interface EventStore<AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> : EventStoreOptions<EventStore<AID, A, E>, AID, A, E> {
+/** Synchronous operations using Java envelopes. / Java封筒を使う同期操作。 */
+interface EventStore<P, A> {
     companion object {
-        /**
-         * Create an instance of [EventStoreForDynamoDB]. / [EventStoreForDynamoDB]のインスタンスを作成します。
-         *
-         * @param AID Aggregate ID / 集約ID
-         * @param A Aggregate / 集約
-         * @param E Event / イベント
-         * @param underlying Underlying instance / 下位のインスタンス
-         */
-        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(
-            underlying: JavaEventStoreForDynamoDB<AID, A, E>,
-        ): EventStoreForDynamoDB<AID, A, E> = EventStoreForDynamoDB(underlying)
+        /** Shares the supplied storage. / 渡された保存先を共有します。 */
+        fun <P, A> ofMemory(
+            storage: MemoryStorage,
+            config: EventStoreConfig<P, A>,
+        ): EventStore<P, A> = fromJava(MemoryEventStore.create(storage, config))
 
-        /**
-         * Create an instance of [EventStoreForDynamoDB]. / [EventStoreForDynamoDB]のインスタンスを作成します。
-         *
-         * @param AID Aggregate ID / 集約ID
-         * @param A Aggregate / 集約
-         * @param E Event / イベント
-         * @param dynamoDbClient DynamoDB client / DynamoDBクライアント
-         * @param journalTableName Journal table name / ジャーナルテーブル名
-         * @param snapshotTableName Snapshot table name / スナップショットテーブル名
-         * @param journalAidIndexName Journal AID index name / ジャーナルAIDインデックス名
-         * @param snapshotAidIndexName Snapshot AID index name / スナップショットAIDインデックス名
-         * @param shardCount Shard count / シャード数
-         * @return [EventStoreForDynamoDB] instance / [EventStoreForDynamoDB]のインスタンス
-         */
-        fun <AID : AggregateId, A : Aggregate<A, AID>, E : Event<AID>> ofDynamoDB(
-            dynamoDbClient: DynamoDbClient,
-            journalTableName: String,
-            snapshotTableName: String,
-            journalAidIndexName: String,
-            snapshotAidIndexName: String,
-            shardCount: Long,
-        ): EventStoreForDynamoDB<AID, A, E> =
-            ofDynamoDB(
-                JavaEventStoreForDynamoDB.create(
-                    dynamoDbClient,
-                    journalTableName,
-                    snapshotTableName,
-                    journalAidIndexName,
-                    snapshotAidIndexName,
-                    shardCount,
-                ),
-            )
+        /** Validates three provisioned tables; the caller owns the client. / 外部の3表を照合し、クライアントは呼出側が所有します。 */
+        fun <P, A> ofDynamoDB(
+            client: DynamoDbClient,
+            tables: DynamoDbTableConfig,
+            config: EventStoreConfig<P, A>,
+        ): EventStore<P, A> = fromJava(DynamoDbEventStore.create(client, tables, config))
+
+        /** Wraps the new Java public interface. / 新しいJava公開インターフェイスを包みます。 */
+        fun <P, A> fromJava(underlying: JavaEventStore<P, A>): EventStore<P, A> = JavaEventStoreAdapter(underlying)
     }
 
-    /**
-     * Gets the latest snapshot by the aggregate id. / 集約IDによる最新のスナップショットを取得します。
-     *
-     * @param clazz Aggregate class / 集約クラス
-     * @param aggregateId Aggregate ID / 集約ID
-     * @return Aggregate instance / 集約のインスタンス
-     * @throws com.github.j5ik2o.event.store.adapter.java.EventStoreReadException if an error occurred during reading from the event store / イベントストアからの読み込み中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.DeserializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
-     */
-    fun getLatestSnapshotById(
-        clazz: Class<A>,
-        aggregateId: AID,
-    ): A?
+    fun persistEvent(event: EventEnvelope<P>)
 
-    /**
-     * Gets the events by the aggregate id and since the sequence number. / IDとシーケンス番号以降のイベントを取得します。
-     *
-     * @param clazz Event class / イベントクラス
-     * @param aggregateId Aggregate ID / 集約ID
-     * @param sequenceNumber Sequence number / シーケンス番号
-     * @return List of events / イベントのリスト
-     * @throws com.github.j5ik2o.event.store.adapter.java.EventStoreReadException if an error occurred during reading from the event store / イベントストアからの読み込み中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.DeserializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
-     */
-    fun getEventsByIdSinceSequenceNumber(
-        clazz: Class<E>,
-        aggregateId: AID,
-        sequenceNumber: Long,
-    ): List<E>
-
-    /**
-     * Persists an event only. / イベントのみを永続化します。
-     *
-     * @param event Event / イベント
-     * @param version Version / バージョン
-     * @throws com.github.j5ik2o.event.store.adapter.java.EventStoreWriteException if an error occurred during writing to the event store / イベントストアへの書き込み中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.SerializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.TransactionException if an error occurred during transaction / トランザクション中にエラーが発生した場合
-     */
-    fun persistEvent(
-        event: E,
-        version: Long,
-    )
-
-    /**
-     * Persists an event and a snapshot. / イベントとスナップショットを永続化します。
-     *
-     * @param event Event / イベント
-     * @param aggregate Aggregate / 集約
-     * @throws com.github.j5ik2o.event.store.adapter.java.EventStoreWriteException if an error occurred during writing to the event store / イベントストアへの書き込み中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.SerializationException if an error occurred during serialization / シリアライズ中にエラーが発生した場合
-     * @throws com.github.j5ik2o.event.store.adapter.java.TransactionException if an error occurred during transaction / トランザクション中にエラーが発生した場合
-     */
     fun persistEventAndSnapshot(
-        event: E,
-        aggregate: A,
+        event: EventEnvelope<P>,
+        snapshot: SnapshotEnvelope<A>,
     )
+
+    /** Null means no head; a present result can have no snapshot. / nullはヘッド不存在。結果の中の封筒も不存在を表せます。 */
+    fun getLatestSnapshotById(aggregateId: AggregateId): SnapshotReadResult<A>?
+
+    /** Returns every envelope with seq_nr >= seqNr in ascending order. / 指定番号以上の全封筒を昇順で返します。 */
+    fun getEventsByIdSinceSeqNr(
+        aggregateId: AggregateId,
+        seqNr: Long,
+    ): List<EventEnvelope<P>>
 }

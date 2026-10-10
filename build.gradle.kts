@@ -22,9 +22,11 @@ repositories {
     maven {
         name = "sonatypeSnapshots"
         url  = uri("https://central.sonatype.com/repository/maven-snapshots/")
-        credentials {
-            username = System.getenv("SONATYPE_USERNAME")
-            password = System.getenv("SONATYPE_PASSWORD")
+        if (System.getenv("SONATYPE_USERNAME") != null) {
+            credentials {
+                username = System.getenv("SONATYPE_USERNAME")
+                password = System.getenv("SONATYPE_PASSWORD")
+            }
         }
         mavenContent { snapshotsOnly() }
     }
@@ -40,14 +42,15 @@ dependencies {
     testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.5"))
     testImplementation("org.testcontainers:testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
-    testImplementation("org.testcontainers:testcontainers-localstack")
+    testImplementation("software.amazon.awssdk:apache5-client:2.55.14")
+    testImplementation("software.amazon.awssdk:netty-nio-client:2.55.14")
+    testImplementation("com.networknt:json-schema-validator:2.0.8")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.+")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    implementation("io.github.j5ik2o:event-store-adapter-java:1.2.91")
+    api("io.github.j5ik2o:event-store-adapter-java:2.0.0-SNAPSHOT")
     implementation("software.amazon.awssdk:dynamodb:2.55.14")
-    implementation("de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0")
 }
 
 val testJavaVersion = providers.gradleProperty("testJavaVersion").map(String::toInt).orElse(11)
@@ -118,6 +121,7 @@ spotless {
     }
     kotlin {
         target("**/*.kt")
+        targetExclude(".takt/**")
         ktlint()
     }
 }
