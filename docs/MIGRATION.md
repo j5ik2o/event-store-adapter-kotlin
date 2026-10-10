@@ -1,0 +1,14 @@
+# Migrating the old Kotlin API and DynamoDB data
+
+This cutover removes the old Aggregate/Event inheritance, version argument, shard/key-resolver configuration, old Java internal factories, and getEventsByIdSinceSequenceNumber. Use Java core envelopes and EventStoreConfig, the two-parameter Kotlin stores, and getEventsByIdSinceSeqNr. Serializers are selected at store creation. Snapshot reads retain both the optional envelope and the separate head sequence.
+
+Old Kotlin/Java DynamoDB layouts cannot be opened with the new factories. The [common implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md) specifies a user-controlled rewrite for this old layout; the Rust version 3 migration tool does not apply.
+
+1. Stop writes to the old store and retain its tables and configuration for reading and verification.
+2. Use the old library version and the original serializer/key configuration to read the old data. Verify that every aggregate's journal has been read completely and sequences are continuous from 1. The old event-query API can stop at one page, so use the original layout and independent storage reads when necessary to verify completeness. Resolve gaps before rewriting.
+3. Define an explicit user conversion from old identifiers and payloads to typeName/value, event payload, occurredAt, manifest and aggregate state. Remove library metadata embedded in payloads only according to your domain mapping. Supply manifests explicitly or use the defined empty default. Map type names containing hyphens explicitly. Do not guess lost identifier/type information or restore nanoseconds that were lost in the old millisecond timestamps.
+4. Provision new independent journal, snapshot and head tables using the [new schema](DATABASE_SCHEMA.md). Generate the store with EventStore.ofDynamoDB or EventStoreAsync.ofDynamoDB to initialize and validate its three configuration items. Do not combine old and new tables.
+5. Rewrite each aggregate through the new public append operations in continuous sequence order starting at 1. Use persistEvent for events without a corresponding snapshot and persistEventAndSnapshot only when the snapshot reflects that event's sequence. Do not pass old version values or initialize an aggregate at its final sequence; the head is built by the continuous appends.
+6. Read back envelope fields, payloads, the optional snapshot and head sequence. Verify complete replay and aggregate isolation before switching applications to the new store and resuming writes. Keep the old data until this verification is complete.
+
+The wrapper contains no old-layout reader, compatibility alias, fallback, or automatic conversion. Memory data has process lifetime: create new storage and replay converted events if you need to move running application state. A formal distribution and version change are separate owner-controlled work.
