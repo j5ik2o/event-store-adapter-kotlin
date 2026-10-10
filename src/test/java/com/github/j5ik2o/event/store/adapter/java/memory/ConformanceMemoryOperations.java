@@ -32,13 +32,13 @@ public final class ConformanceMemoryOperations {
 
   private ConformanceMemoryOperations() {}
 
-  public static ObjectNode executeScenario(JsonNode scenario) {
-    ObjectNode result = F.objectNode();
+  public static void executeScenario(JsonNode scenario, ObjectNode result) {
+    result.put("current_operation", 0);
     if (scenario.has("seed")
         || scenario.has("clock")
         || scenario.path("initialization").has("observe")) {
       result.put("unsupported", "メモリへ未接続のseed・時計・初期化観測がある");
-      return result;
+      return;
     }
     for (JsonNode step : scenario.path("steps")) {
       if (!Set.of(
@@ -48,28 +48,28 @@ public final class ConformanceMemoryOperations {
               "getEventsByIdSinceSeqNr")
           .contains(step.path("op").asText())) {
         result.put("unsupported", "メモリへ未接続の操作: " + step.path("op").asText());
-        return result;
+        return;
       }
       java.util.Iterator<String> fields = step.path("observe").fieldNames();
       while (fields.hasNext()) {
         String field = fields.next();
         if (!Set.of("history", "notifications").contains(field)) {
           result.put("unsupported", "メモリへ未接続の観測: " + field);
-          return result;
+          return;
         }
       }
       fields = step.at("/observe/history").fieldNames();
       while (fields.hasNext()) {
         if (!Set.of("active", "marked", "absent").contains(fields.next())) {
           result.put("unsupported", "メモリへ未接続の履歴観測がある");
-          return result;
+          return;
         }
       }
     }
     Faults faults = new Faults(scenario.path("faults"));
     if (!faults.supported()) {
       result.put("unsupported", "メモリへ接続できない障害がある");
-      return result;
+      return;
     }
     List<String> notifications = new ArrayList<>();
     MemoryStorage storage;
@@ -97,12 +97,13 @@ public final class ConformanceMemoryOperations {
     } catch (EventStoreException failure) {
       result.set("initialization", error(failure));
       faults.finish(result);
-      return result;
+      return;
     }
     ArrayNode steps = result.putArray("steps");
     JsonNode fixtures = scenario.path("fixtures");
     for (JsonNode step : scenario.path("steps")) {
       faults.operation++;
+      result.put("current_operation", faults.operation);
       notifications.clear();
       JsonNode args = step.path("arguments");
       ObjectNode actual;
@@ -148,6 +149,7 @@ public final class ConformanceMemoryOperations {
       } catch (EventStoreException failure) {
         actual = error(failure);
       }
+      steps.add(actual);
       ObjectNode observe = actual.putObject("observe");
       ArrayNode notified = observe.putArray("notifications");
       notifications.forEach(notified::add);
@@ -161,14 +163,13 @@ public final class ConformanceMemoryOperations {
         storage.historySeqNrs(aid(aggregate)).stream().sorted().forEach(active::add);
         history.putArray("marked");
       }
-      steps.add(actual);
       faults.finishOperation(result);
     }
     faults.finish(result);
-    return result;
   }
 
-  public static ObjectNode validateOccurredAt(JsonNode input, String caseId) {
+  public static void validateOccurredAt(JsonNode input, String caseId, ObjectNode result) {
+    result.put("current_operation", 0);
     EventStore<JsonNode, JsonNode> store =
         KotlinTestBinding.memory(
             MemoryStorage.create(),
@@ -178,19 +179,25 @@ public final class ConformanceMemoryOperations {
                 .build());
     AggregateId id = AggregateId.of("ConformanceTime", caseId);
     long target = input.path("event_seq_nr").bigIntegerValue().longValueExact();
+    ArrayNode steps = result.putArray("steps");
     try {
       for (long seq = 1; seq < target; seq++) {
+        result.put("current_operation", seq);
         store.persistEvent(timeEvent(id, seq, Instant.parse("1970-01-01T00:00:00.123000000Z")));
+        steps.addObject().put("operation", seq).put("result", "success");
       }
+      result.put("current_operation", target);
       store.persistEvent(timeEvent(id, target, Instant.parse(input.path("iso8601").asText())));
+      steps.addObject().put("operation", target).put("result", "success");
+      result.put("current_operation", target + 1);
       Instant actual = store.getEventsByIdSinceSeqNr(id, target).get(0).occurredAt();
       BigInteger nanos =
           BigInteger.valueOf(actual.getEpochSecond())
               .multiply(BigInteger.valueOf(1_000_000_000L))
               .add(BigInteger.valueOf(actual.getNano()));
-      return F.objectNode().put("value", nanos.toString());
+      result.put("value", nanos.toString());
     } catch (EventStoreException failure) {
-      return error(failure);
+      result.setAll(error(failure));
     }
   }
 

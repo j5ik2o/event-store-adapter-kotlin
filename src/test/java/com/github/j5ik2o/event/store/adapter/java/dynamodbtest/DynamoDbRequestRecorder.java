@@ -79,6 +79,8 @@ final class DynamoDbRequestRecorder implements ExecutionInterceptor {
     int httpAttempts;
     int transmissions;
     boolean requestReplaced;
+    boolean executionFinished;
+    int pendingTransportRecords;
     final CompletableFuture<Void> termination = new CompletableFuture<>();
   }
 
@@ -195,6 +197,20 @@ final class DynamoDbRequestRecorder implements ExecutionInterceptor {
     state.transmitted = DynamoDbJson.read(body);
   }
 
+  synchronized void transportStarted(SdkHttpRequest request) {
+    State state = state(request);
+    if (state.termination.isDone()) throw new IllegalStateException("Request already terminated");
+    state.pendingTransportRecords++;
+  }
+
+  synchronized void transportFinished(SdkHttpRequest request) {
+    State state = state(request);
+    if (state.pendingTransportRecords <= 0)
+      throw new IllegalStateException("Transport record already finished");
+    state.pendingTransportRecords--;
+    publishTerminal(state);
+  }
+
   private State state(SdkHttpRequest request) {
     long id =
         Long.parseLong(
@@ -239,8 +255,17 @@ final class DynamoDbRequestRecorder implements ExecutionInterceptor {
 
   private synchronized void terminal(ExecutionAttributes attrs) {
     State state = attrs.getAttribute(STATE);
-    if (state != null && !state.termination.isDone()) {
+    if (state != null && !state.executionFinished) {
       state.finishedNanos = System.nanoTime();
+      state.executionFinished = true;
+      publishTerminal(state);
+    }
+  }
+
+  private void publishTerminal(State state) {
+    if (state.executionFinished
+        && state.pendingTransportRecords == 0
+        && !state.termination.isDone()) {
       if (state.selection != null && !faults.isApplied(state.selection))
         pages.remove(state.operation, state.selection);
       faults.release(state.selection);

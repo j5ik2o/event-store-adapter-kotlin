@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /** 実際のメモリ操作の結果を、共通データの期待値と比較する。 */
 final class MemoryCaseRunner {
@@ -19,76 +20,117 @@ final class MemoryCaseRunner {
   }
 
   static CaseResult run(ConformanceCase c) {
+    return run(
+        c,
+        actual -> {
+          if (c.operation().isPresent()) {
+            ConformanceMemoryOperations.validateOccurredAt(
+                c.materialized().path("input"), c.id(), actual);
+          } else {
+            ConformanceMemoryOperations.executeScenario(c.materialized(), actual);
+          }
+        });
+  }
+
+  /** Keeps a caller-owned observation even when execution or comparison throws unexpectedly. */
+  static CaseResult run(ConformanceCase c, Consumer<ObjectNode> execute) {
     JsonNode input = c.materialized();
     List<String> problems = new ArrayList<>();
     Integer failedOperation = null;
-    ObjectNode actual;
-    if (c.operation().isPresent()) {
-      actual = ConformanceMemoryOperations.validateOccurredAt(input.path("input"), c.id());
-      ObjectNode expected = input.path("expect").deepCopy();
-      // 精度方針は実行器への指定であり、保存操作の戻り値ではない。
-      expected.remove("precision_policy");
-      compare(expected, actual, problems, "時刻");
-    } else {
-      actual = ConformanceMemoryOperations.executeScenario(input);
-      if (actual.has("unsupported")) {
-        return result(
-            c, ConformanceStatus.UNVERIFIED, actual.path("unsupported").asText(), null, actual);
-      }
-      JsonNode initialization = input.path("initialization").path("expect");
-      if (initialization.isMissingNode()) {
-        if (!"success".equals(actual.path("initialization").path("result").asText())) {
-          problems.add("保存先の生成に失敗した");
-          failedOperation = 0;
-        }
+    ObjectNode actual = ConformanceJson.mapper().createObjectNode();
+    try {
+      actual.put("current_operation", 0);
+      execute.accept(actual);
+      if (c.operation().isPresent()) {
+        actual.put("comparison_position", "/expect");
+        ObjectNode expected = input.path("expect").deepCopy();
+        // 精度方針は実行器への指定であり、保存操作の戻り値ではない。
+        expected.remove("precision_policy");
+        compare(expected, actual, problems, "時刻");
       } else {
-        compare(initialization, actual.path("initialization"), problems, "生成");
-        if (!problems.isEmpty()) {
-          failedOperation = 0;
+        if (actual.has("unsupported")) {
+          actual.remove("current_operation");
+          return result(
+              c, ConformanceStatus.UNVERIFIED, actual.path("unsupported").asText(), null, actual);
         }
-      }
-      JsonNode steps = input.path("steps");
-      JsonNode results = actual.path("steps");
-      if (steps.size() != results.size()) {
-        problems.add("実行した操作数が違う");
-      }
-      for (int i = 0; i < steps.size() && i < results.size(); i++) {
-        int before = problems.size();
-        JsonNode step = steps.get(i);
-        ObjectNode expected = step.path("expect").deepCopy();
-        if (expected.path("snapshot").isTextual()) {
-          expected.set(
-              "snapshot",
-              envelope(
-                  input.path("fixtures").path("snapshots").path(expected.path("snapshot").asText()),
-                  false));
-        }
-        if (expected.has("events")) {
-          com.fasterxml.jackson.databind.node.ArrayNode events = expected.putArray("events");
-          for (JsonNode reference : step.path("expect").path("events")) {
-            events.add(
-                envelope(input.path("fixtures").path("events").path(reference.asText()), true));
+        JsonNode initialization = input.path("initialization").path("expect");
+        actual.put("current_operation", 0).put("comparison_position", "/initialization/expect");
+        if (initialization.isMissingNode()) {
+          if (!"success".equals(actual.path("initialization").path("result").asText())) {
+            problems.add("保存先の生成に失敗した");
+            failedOperation = 0;
+          }
+        } else {
+          compare(initialization, actual.path("initialization"), problems, "生成");
+          if (!problems.isEmpty()) {
+            failedOperation = 0;
           }
         }
-        compare(expected, results.get(i), problems, "操作 " + (i + 1));
-        observe(step.path("observe"), results.get(i).path("observe"), problems);
-        if (failedOperation == null && before != problems.size()) {
-          failedOperation = i + 1;
+        JsonNode steps = input.path("steps");
+        JsonNode results = actual.path("steps");
+        if (steps.size() != results.size()) {
+          problems.add("実行した操作数が違う");
+        }
+        for (int i = 0; i < steps.size() && i < results.size(); i++) {
+          actual
+              .put("current_operation", i + 1)
+              .put("comparison_position", "/steps/" + i + "/expect");
+          int before = problems.size();
+          JsonNode step = steps.get(i);
+          ObjectNode expected = step.path("expect").deepCopy();
+          if (expected.path("snapshot").isTextual()) {
+            expected.set(
+                "snapshot",
+                envelope(
+                    input
+                        .path("fixtures")
+                        .path("snapshots")
+                        .path(expected.path("snapshot").asText()),
+                    false));
+          }
+          if (expected.has("events")) {
+            com.fasterxml.jackson.databind.node.ArrayNode events = expected.putArray("events");
+            for (JsonNode reference : step.path("expect").path("events")) {
+              events.add(
+                  envelope(input.path("fixtures").path("events").path(reference.asText()), true));
+            }
+          }
+          compare(expected, results.get(i), problems, "操作 " + (i + 1));
+          actual.put("comparison_position", "/steps/" + i + "/observe");
+          observe(step.path("observe"), results.get(i).path("observe"), problems);
+          if (failedOperation == null && before != problems.size()) {
+            failedOperation = i + 1;
+          }
+        }
+        if (actual.has("fault_failure")) {
+          problems.add(actual.path("fault_failure").asText());
+          if (failedOperation == null) {
+            failedOperation = actual.path("fault_operation").intValue();
+          }
         }
       }
-      if (actual.has("fault_failure")) {
-        problems.add(actual.path("fault_failure").asText());
-        if (failedOperation == null) {
-          failedOperation = actual.path("fault_operation").intValue();
-        }
+      actual.remove("current_operation");
+      actual.remove("comparison_position");
+      return result(
+          c,
+          problems.isEmpty() ? ConformanceStatus.PASSED : ConformanceStatus.FAILED,
+          problems.isEmpty() ? null : String.join("; ", problems),
+          failedOperation,
+          actual);
+    } catch (RuntimeException | AssertionError failure) {
+      ObjectNode recorded = actual.putObject("execution_failure");
+      recorded.put("exception", failure.getClass().getName()).put("message", failure.getMessage());
+      if (failure.getCause() != null) {
+        recorded.put("cause", failure.getCause().getClass().getName());
+        recorded.put("cause_message", failure.getCause().getMessage());
       }
+      return result(
+          c,
+          ConformanceStatus.FAILED,
+          failure.toString(),
+          actual.path("current_operation").asInt(0),
+          actual);
     }
-    return result(
-        c,
-        problems.isEmpty() ? ConformanceStatus.PASSED : ConformanceStatus.FAILED,
-        problems.isEmpty() ? null : String.join("; ", problems),
-        failedOperation,
-        actual);
   }
 
   private static ObjectNode envelope(JsonNode fixture, boolean event) {
