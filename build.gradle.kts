@@ -50,6 +50,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     api("io.github.j5ik2o:event-store-adapter-java:5.0.0")
+||||||| c0a646a
+    api("io.github.j5ik2o:event-store-adapter-java:2.0.0-SNAPSHOT")
     implementation("software.amazon.awssdk:dynamodb:2.55.15")
 }
 
