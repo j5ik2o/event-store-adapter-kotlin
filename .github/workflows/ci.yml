@@ -73,23 +73,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew test -PtestJavaVersion=${{ matrix.java }} --info
       - name: Write per-rule conformance table to job summary
+        if: ${{ !cancelled() }}
         run: |
           report=build/reports/conformance/report.json
           test -f "$report" || { echo "missing $report"; exit 1; }
           jq -r '
-            def statuses: ["passed","failed","not-applicable","unverified"];
+            def statuses: ["passed","failed","not-applicable","unverified","unrepresentable"];
             .rules as $rules
             | "## Conformance by rule (JDK ${{ matrix.java }})\n",
               ( [$rules[].backend] | unique[] ) as $b
             | "### \($b)\n",
-              "| rule | passed | failed | not-applicable | unverified | not-applicable reason |",
-              "|---|---|---|---|---|---|",
+              "| rule | passed | failed | not-applicable | unverified | unrepresentable | reason (not-applicable / unrepresentable) |",
+              "|---|---|---|---|---|---|---|",
               ( [$rules[] | select(.backend == $b)] | group_by(.rule)[]
                 | . as $g
                 | "| \($g[0].rule) | "
                   + ( statuses | map(. as $s | [$g[] | select(.status == $s)] | length | tostring) | join(" | ") )
                   + " | "
-                  + ( [$g[] | select(.status == "not-applicable") | .reason] | unique | join("; ") | gsub("\\|"; "\\|") | gsub("\n"; " ") )
+                  + ( [$g[] | select(.status == "not-applicable" or .status == "unrepresentable") | .reason] | unique | join("; ") | gsub("\\|"; "\\|") | gsub("\n"; " ") )
                   + " |" ),
               ""
           ' "$report" >> "$GITHUB_STEP_SUMMARY"
