@@ -42,15 +42,15 @@ dependencies {
     testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.5"))
     testImplementation("org.testcontainers:testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
-    testImplementation("software.amazon.awssdk:apache5-client:2.55.15")
-    testImplementation("software.amazon.awssdk:netty-nio-client:2.55.15")
+    testImplementation("software.amazon.awssdk:apache5-client:2.55.16")
+    testImplementation("software.amazon.awssdk:netty-nio-client:2.55.16")
     testImplementation("com.networknt:json-schema-validator:2.0.8")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.+")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     api("io.github.j5ik2o:event-store-adapter-java:5.0.1")
-    implementation("software.amazon.awssdk:dynamodb:2.55.15")
+    implementation("software.amazon.awssdk:dynamodb:2.55.16")
 }
 
 val testJavaVersion = providers.gradleProperty("testJavaVersion").map(String::toInt).orElse(11)
