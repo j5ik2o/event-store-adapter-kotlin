@@ -6,7 +6,7 @@
 
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、コルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を[共通契約](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)の第4版へ破壊的に切り替えています。Java配布 `2.0.0-SNAPSHOT` に依存し、その配布版は共通契約の版とは別です。この変更ではKotlinの正式公開や版番号の変更を行っていません。[移行案内](docs/MIGRATION.ja.md)を参照してください。
+このソースは公開操作と保存配置を[共通契約 v4](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）へ破壊的に切り替えています。Java配布 `2.0.0-SNAPSHOT` に依存し、その配布版の番号は共通契約 v4 の番号とは別です。この変更ではKotlinの正式公開や版番号の変更を行っていません。[移行案内](docs/MIGRATION.ja.md)を参照してください。
 
 ## 導入方法
 

@@ -72,6 +72,36 @@ jobs:
             25
       - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew test -PtestJavaVersion=${{ matrix.java }} --info
+      - name: Write per-rule conformance table to job summary
+        run: |
+          report=build/reports/conformance/report.json
+          test -f "$report" || { echo "missing $report"; exit 1; }
+          jq -r '
+            def statuses: ["passed","failed","not-applicable","unverified"];
+            .rules as $rules
+            | "## Conformance by rule (JDK ${{ matrix.java }})\n",
+              ( [$rules[].backend] | unique[] ) as $b
+            | "### \($b)\n",
+              "| rule | passed | failed | not-applicable | unverified | not-applicable reason |",
+              "|---|---|---|---|---|---|",
+              ( [$rules[] | select(.backend == $b)] | group_by(.rule)[]
+                | . as $g
+                | "| \($g[0].rule) | "
+                  + ( statuses | map(. as $s | [$g[] | select(.status == $s)] | length | tostring) | join(" | ") )
+                  + " | "
+                  + ( [$g[] | select(.status == "not-applicable") | .reason] | unique | join("; ") | gsub("\\|"; "\\|") | gsub("\n"; " ") )
+                  + " |" ),
+              ""
+          ' "$report" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report-jdk${{ matrix.java }}
+          path: |
+            build/reports/conformance/report.json
+            build/reports/conformance/summary.md
+          if-no-files-found: error
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
