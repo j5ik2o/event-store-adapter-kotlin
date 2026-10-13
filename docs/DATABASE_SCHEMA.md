@@ -1,5 +1,7 @@
 # DynamoDB storage layout
 
+Keep the three tables in one Region and write to them only from that Region. Global tables (multi-Region replicas) are not supported.
+
 The Kotlin factories use the Java public store and the [common DynamoDB profile](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/storage/dynamodb.md). Provision these three independent tables externally and supply their names through `DynamoDbTableConfig`. All tables must be in one region with writes routed to that region.
 
 | Table | Partition key | Sort key | Global secondary index | Streams |
