@@ -1,5 +1,7 @@
 # DynamoDBの保存配置
 
+3 つの表は同じリージョンに置き、書き込みもそのリージョンからだけ行ってください。グローバルテーブル（複数リージョンのレプリカ）は範囲外です。
+
 Kotlinの生成入口はJava新公開ストアと[共通DynamoDBプロファイル](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/storage/dynamodb.md)を使います。次の独立3表を外部で作成し、名前を `DynamoDbTableConfig` へ指定してください。3表は同じリージョンに置き、そのリージョンだけから書き込みます。
 
 | 表 | パーティションキー | ソートキー | グローバルセカンダリインデックス | Streams |

@@ -6,7 +6,7 @@
 
 A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory and DynamoDB storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.0`. See the [migration guide](docs/MIGRATION.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.1`. See the [migration guide](docs/MIGRATION.md).
 
 ## Installation
 
@@ -16,7 +16,7 @@ The library is published to Maven Central. The Java public types are exported th
 repositories {
     mavenCentral()
 }
-val adapterVersion = "5.0.0"
+val adapterVersion = "5.0.1"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
@@ -92,6 +92,9 @@ Retention is set on `MemoryStorage.create(RetentionPolicy.delete(n))` or `Dynamo
 The Java `core` exception types preserve five classifications: `OptimisticLockException`, `ContractViolationException`, `SerializationException`, `ConfigurationException`, and `StorageException`. Contract violations retain `rule()` and `seqNr()`; wrapped causes are preserved. Suspending factories and operations use `kotlinx.coroutines.future.await`. Cancelling the caller cancels the awaited Java result; an already submitted storage request can still finish or commit. Await its independent terminal state before releasing caller-owned resources.
 
 Executable repository examples are in [synchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt) and [asynchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt) form.
+
+The memory storage lives in a single process. It does not persist to files, survive restarts, or share data across processes. For DynamoDB, keep the three tables in one Region and write to them only from that Region. Global tables (multi-Region replicas) are not supported.
+
 
 ## Storage and verification
 

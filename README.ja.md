@@ -6,7 +6,7 @@
 
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、コルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.0` に依存します。[移行案内](docs/MIGRATION.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.1` に依存します。[移行案内](docs/MIGRATION.ja.md)を参照してください。
 
 ## 導入方法
 
@@ -16,7 +16,7 @@ Maven Central に公開しています。Gradleの `api` 依存を通じてJava�
 repositories {
     mavenCentral()
 }
-val adapterVersion = "5.0.0"
+val adapterVersion = "5.0.1"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
@@ -92,6 +92,9 @@ suspend fun dynamoDbStore(client: DynamoDbAsyncClient): EventStoreAsync<String, 
 Javaの `core` 例外型で楽観ロック、契約違反、直列化、設定、保存先の5分類を区別できます。型は `OptimisticLockException`、`ContractViolationException`、`SerializationException`、`ConfigurationException`、`StorageException` です。契約違反の `rule()` と `seqNr()`、例外原因を保持します。非同期生成・操作は `kotlinx.coroutines.future.await` で待ちます。取消は待機しているJava完了結果へ伝わりますが、送信済みの保存先要求はその後も終端や確定へ到達し得ます。呼出側資源は実要求の終端後に解放してください。
 
 実行可能なリポジトリ例は[同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt)と[非同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt)を参照してください。
+
+メモリの保存先は単一プロセスのメモリだけを使います。ファイルへの保存、再起動後の回復、プロセス間の共有はしません。DynamoDB では、3 つの表は同じリージョンに置き、書き込みもそのリージョンからだけ行ってください。グローバルテーブル（複数リージョンのレプリカ）は範囲外です。
+
 
 ## 保存形式と検証
 
