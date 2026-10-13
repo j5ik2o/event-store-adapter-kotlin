@@ -10,14 +10,13 @@ This source makes a breaking API and storage-layout cutover. This library follow
 
 ## Installation
 
-Choose a Kotlin build that contains this cutover. The snapshot repository is required while the Java dependency is a snapshot. The Java public types are exported through the Kotlin library's Gradle `api` dependency.
+The library is published to Maven Central. The Java public types are exported through the Kotlin library's Gradle `api` dependency.
 
 ```kotlin
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
-val adapterVersion = "..." // Select a build containing this API cutover.
+val adapterVersion = "5.0.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }

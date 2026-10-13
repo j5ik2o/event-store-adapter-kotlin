@@ -10,14 +10,13 @@
 
 ## 導入方法
 
-この切替を含むKotlinの配布を選んでください。Java依存がSnapshotの間は、次のリポジトリも必要です。Gradleの `api` 依存を通じてJavaの公開型を利用できます。
+Maven Central に公開しています。Gradleの `api` 依存を通じてJavaの公開型を利用できます。
 
 ```kotlin
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
-val adapterVersion = "..." // この切替を含む配布版を指定してください。
+val adapterVersion = "5.0.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
