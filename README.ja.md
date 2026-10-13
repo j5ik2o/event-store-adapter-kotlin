@@ -6,18 +6,17 @@
 
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、コルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。現在はJava配布 `2.0.0-SNAPSHOT` に依存しており、Java 5.0.0 の公開後に更新します。この変更ではKotlinの正式公開や版番号の変更を行っていません。[移行案内](docs/MIGRATION.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.0` に依存します。[移行案内](docs/MIGRATION.ja.md)を参照してください。
 
 ## 導入方法
 
-この切替を含むKotlinの配布を選んでください。Java依存がSnapshotの間は、次のリポジトリも必要です。Gradleの `api` 依存を通じてJavaの公開型を利用できます。
+Maven Central に公開しています。Gradleの `api` 依存を通じてJavaの公開型を利用できます。
 
 ```kotlin
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
-val adapterVersion = "..." // この切替を含む配布版を指定してください。
+val adapterVersion = "5.0.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }

@@ -6,18 +6,17 @@
 
 A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory and DynamoDB storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It currently depends on Java distribution `2.0.0-SNAPSHOT`, which will be updated after Java 5.0.0 is published. A formal Kotlin release has not been made by this change, and the Kotlin version file is unchanged. See the [migration guide](docs/MIGRATION.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.0`. See the [migration guide](docs/MIGRATION.md).
 
 ## Installation
 
-Choose a Kotlin build that contains this cutover. The snapshot repository is required while the Java dependency is a snapshot. The Java public types are exported through the Kotlin library's Gradle `api` dependency.
+The library is published to Maven Central. The Java public types are exported through the Kotlin library's Gradle `api` dependency.
 
 ```kotlin
 repositories {
     mavenCentral()
-    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
 }
-val adapterVersion = "..." // Select a build containing this API cutover.
+val adapterVersion = "5.0.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
