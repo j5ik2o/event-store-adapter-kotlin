@@ -92,6 +92,36 @@ class DynamoDbRequestScopeTest {
   }
 
   @Test
+  void batchEntryWithoutAidIsAViolationEvenWhenAnotherEntryHasTheAid() {
+    String own = "{\"aid\":{\"S\":\"" + AID + "\"},\"skey\":{\"N\":\"0\"}}";
+    String noAid = "{\"skey\":{\"N\":\"0\"}}";
+    for (DynamoDbRequestScope.Observed request :
+        List.of(
+            observed(
+                "BatchGetItem",
+                "{\"RequestItems\":{\"snapshot\":{\"Keys\":[" + own + "," + noAid + "]}}}"),
+            observed(
+                "BatchWriteItem",
+                "{\"RequestItems\":{\"snapshot\":[{\"DeleteRequest\":{\"Key\":"
+                    + own
+                    + "}},{\"DeleteRequest\":{\"Key\":"
+                    + noAid
+                    + "}}]}}"),
+            observed(
+                "TransactWriteItems",
+                "{\"TransactItems\":[{\"Put\":{\"Item\":"
+                    + own
+                    + "}},{\"Update\":{\"Key\":"
+                    + noAid
+                    + "}}]}"))) {
+      List<String> problems = DynamoDbRequestScope.violations(List.of(request), APIS, AID);
+
+      assertTrue(
+          problems.stream().anyMatch(p -> p.contains("aid がない")), request.api + ": " + problems);
+    }
+  }
+
+  @Test
   void zeroRequestsBetweenOperationsIsAViolation() {
     List<String> problems = DynamoDbRequestScope.violations(List.of(), APIS, AID);
 

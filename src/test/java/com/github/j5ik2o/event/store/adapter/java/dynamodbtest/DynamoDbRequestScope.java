@@ -56,24 +56,30 @@ final class DynamoDbRequestScope {
     switch (request.api) {
       case "GetItem":
       case "UpdateItem":
-        add(body.path("Key"), found);
+        add(body.path("Key"), found, problems, request.api);
         break;
       case "BatchGetItem":
         for (Map.Entry<String, JsonNode> table : iterable(body.path("RequestItems")))
-          for (JsonNode key : table.getValue().path("Keys")) add(key, found);
+          for (JsonNode key : table.getValue().path("Keys")) add(key, found, problems, request.api);
         break;
       case "TransactWriteItems":
         for (JsonNode action : body.path("TransactItems")) {
           if (action.size() != 1) throw new IllegalArgumentException("Invalid transaction action");
           Map.Entry<String, JsonNode> entry = action.fields().next();
-          add(entry.getValue().path(entry.getKey().equals("Put") ? "Item" : "Key"), found);
+          add(
+              entry.getValue().path(entry.getKey().equals("Put") ? "Item" : "Key"),
+              found,
+              problems,
+              request.api);
         }
         break;
       case "BatchWriteItem":
         for (Map.Entry<String, JsonNode> table : iterable(body.path("RequestItems")))
           for (JsonNode write : table.getValue()) {
-            if (write.has("DeleteRequest")) add(write.at("/DeleteRequest/Key"), found);
-            if (write.has("PutRequest")) add(write.at("/PutRequest/Item"), found);
+            if (write.has("DeleteRequest"))
+              add(write.at("/DeleteRequest/Key"), found, problems, request.api);
+            if (write.has("PutRequest"))
+              add(write.at("/PutRequest/Item"), found, problems, request.api);
           }
         break;
       case "Query":
@@ -93,9 +99,11 @@ final class DynamoDbRequestScope {
     }
   }
 
-  private static void add(JsonNode item, List<String> found) {
+  /** 項目ごとに aid を取り出す。aid のない項目は、それ自体を違反にする（バッチの中の 1 件だけが欠けても見逃さない）。 */
+  private static void add(JsonNode item, List<String> found, List<String> problems, String api) {
     JsonNode value = item.at("/aid/S");
     if (value.isTextual()) found.add(value.asText());
+    else problems.add(api + " の項目に aid がない");
   }
 
   private static Iterable<Map.Entry<String, JsonNode>> iterable(JsonNode node) {
