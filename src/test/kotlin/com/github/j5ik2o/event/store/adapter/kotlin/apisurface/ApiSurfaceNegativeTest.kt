@@ -78,4 +78,14 @@ class ApiSurfaceNegativeTest {
             ApiSurfaceChecker(ApiSurfaceFiles.surface(), mapping).check(),
         )
     }
+
+    @Test
+    fun `missing base exception mapping is reported`() {
+        val mapping = ApiSurfaceFiles.mapping() as ObjectNode
+        (mapping.path("error_categories") as ObjectNode).remove("base")
+        assertEquals(
+            listOf("mapping: error_categories.base is missing"),
+            ApiSurfaceChecker(ApiSurfaceFiles.surface(), mapping).check(),
+        )
+    }
 }
