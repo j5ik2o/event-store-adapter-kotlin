@@ -53,6 +53,9 @@ class CaseClassifierTest {
         CaseResult r = CaseClassifier.classify(c, b);
         if (EXECUTABLE_CASE_IDS.contains(c.id()) || (b == Backend.MEMORY && memoryExecutable(c))) {
           assertEquals(ConformanceStatus.PASSED, r.status(), c.id() + "/" + b);
+        } else if (b == Backend.MEMORY && c.changeFeed()) {
+          assertEquals(ConformanceStatus.UNREPRESENTABLE, r.status(), c.id() + "/" + b);
+          assertFalse(r.reason() == null || r.reason().isBlank(), c.id() + "/" + b);
         } else {
           assertTrue(
               r.status() == ConformanceStatus.UNVERIFIED
@@ -99,7 +102,7 @@ class CaseClassifierTest {
             .filter(c -> EXECUTABLE_CASE_IDS.contains(c.id()) || memoryExecutable(c))
             .map(ConformanceCase::id)
             .collect(Collectors.toSet());
-    assertEquals(60, memory.size());
+    assertEquals(61, memory.size());
     assertEquals(memory, required.get(Backend.MEMORY));
     Set<String> dynamodb = new java.util.HashSet<>(EXECUTABLE_CASE_IDS);
     Set<String> configuration =
@@ -119,7 +122,7 @@ class CaseClassifierTest {
             .filter(c -> CaseClassifier.exclusion(c, Backend.DYNAMODB).isEmpty())
             .map(ConformanceCase::id)
             .collect(Collectors.toSet());
-    assertEquals(104, targets.size());
+    assertEquals(106, targets.size());
     assertEquals(targets, required.get(Backend.DYNAMODB));
     Set<String> connections =
         data.cases().stream()
@@ -162,9 +165,42 @@ class CaseClassifierTest {
     assertTrue(CaseClassifier.violatesRequirement(dynamo, required));
   }
 
+  @Test
+  void changeFeedCaseIsUnrepresentableOnMemoryAndNotRequired() throws IOException {
+    ConformanceCase c = find("memory-change-feed-unsupported");
+    assertTrue(c.changeFeed());
+
+    CaseResult r = CaseClassifier.classify(c, Backend.MEMORY);
+    assertEquals(ConformanceStatus.UNREPRESENTABLE, r.status(), r.reason());
+    assertTrue(r.reason().contains("変更フィード"), r.reason());
+    assertTrue(CaseClassifier.exclusion(c, Backend.MEMORY).isPresent());
+    assertFalse(RequiredCases.load().get(Backend.MEMORY).contains(c.id()));
+    assertFalse(RequiredCases.load().get(Backend.DYNAMODB).contains(c.id()));
+    assertEquals(
+        ConformanceStatus.NOT_APPLICABLE, CaseClassifier.classify(c, Backend.DYNAMODB).status());
+    Map<Backend, Set<String>> listed =
+        Map.of(Backend.MEMORY, Set.of(c.id()), Backend.DYNAMODB, Set.of());
+    assertTrue(CaseClassifier.violatesRequirement(r, listed));
+  }
+
+  @Test
+  void changeFeedDefaultsToFalseWhenOmitted() {
+    assertFalse(find("memory-ttl-unsupported").changeFeed());
+    assertFalse(find("core-replay-without-snapshot").changeFeed());
+  }
+
+  @Test
+  void ttlCaseIsRequiredOnMemoryAndSingleAggregateCasesOnDynamoDb() throws IOException {
+    Map<Backend, Set<String>> required = RequiredCases.load();
+    assertTrue(required.get(Backend.MEMORY).contains("memory-ttl-unsupported"));
+    assertTrue(required.get(Backend.DYNAMODB).contains("dynamodb-single-aggregate-delete"));
+    assertTrue(required.get(Backend.DYNAMODB).contains("dynamodb-single-aggregate-ttl"));
+  }
+
   private static boolean memoryExecutable(ConformanceCase c) {
     return !c.timePrecision().map("milliseconds"::equals).orElse(false)
         && (c.file().startsWith("scenarios/core/")
+            || (c.file().startsWith("memory/") && !c.changeFeed())
             || c.operation().map("validateOccurredAt"::equals).orElse(false));
   }
 }

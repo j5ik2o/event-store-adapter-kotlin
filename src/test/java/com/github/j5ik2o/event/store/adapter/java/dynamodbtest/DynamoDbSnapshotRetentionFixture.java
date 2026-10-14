@@ -61,9 +61,13 @@ public final class DynamoDbSnapshotRetentionFixture {
                 "requests",
                 "request_count",
                 "minimum_request_count",
-                "no_requests_in_phases")
+                "no_requests_in_phases",
+                "request_scope")
             .contains(field)) return "未接続の観測: " + field;
       }
+      if (step.path("observe").has("request_scope")
+          && !step.at("/observe/request_scope/aid").asText().equals("aggregate_id"))
+        return "未接続の要求範囲: " + step.at("/observe/request_scope/aid").asText();
       if (step.path("observe").has("history")
           && !fields(step.at("/observe/history")).equals(Set.of("active", "marked", "absent")))
         return "未接続の履歴観測";
@@ -390,6 +394,20 @@ public final class DynamoDbSnapshotRetentionFixture {
               .item();
       observedItems.addObject().put("table", role).set("item", DynamoDbJson.sdk(item));
       compareAttributes(definition, item, bindings);
+    }
+    if (expected.has("request_scope")) {
+      Set<String> apis = new java.util.TreeSet<>();
+      expected.at("/request_scope/apis").forEach(api -> apis.add(api.asText()));
+      List<DynamoDbRequestScope.Observed> observed =
+          requests.stream()
+              .map(r -> new DynamoDbRequestScope.Observed(r.api, r.marshalled))
+              .collect(Collectors.toList());
+      List<String> problems = DynamoDbRequestScope.violations(observed, apis, id.asString());
+      ObjectNode scope = scene.last().putObject("request_scope");
+      scope.put("request_count", requests.size());
+      ArrayNode violations = scope.putArray("violations");
+      problems.forEach(violations::add);
+      assertTrue(problems.isEmpty(), problems.toString());
     }
     int index = 0;
     for (JsonNode exp : expected.path("requests")) {

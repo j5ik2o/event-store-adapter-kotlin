@@ -70,6 +70,12 @@ final class ConformanceCase {
     return Optional.of(names);
   }
 
+  /** store.change_feed。省略時は false。 */
+  boolean changeFeed() {
+    JsonNode node = raw.path("store").get("change_feed");
+    return node != null && node.isBoolean() && node.booleanValue();
+  }
+
   Optional<String> timePrecision() {
     JsonNode node = raw.path("representation").get("time_precision");
     return node == null || !node.isTextual() ? Optional.empty() : Optional.of(node.asText());

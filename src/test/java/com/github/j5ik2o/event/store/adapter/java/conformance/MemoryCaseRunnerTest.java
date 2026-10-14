@@ -149,6 +149,29 @@ class MemoryCaseRunnerTest {
   }
 
   @Test
+  void ttlRetentionRequestIsRunAndRejectedAsConfigurationError() throws IOException {
+    ConformanceCase c = find("memory-ttl-unsupported");
+    assertTrue(MemoryCaseRunner.supports(c));
+
+    CaseResult result = CaseClassifier.classify(c, Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void ttlRequestThatDoesNotFailCreationIsRejected() throws IOException {
+    ConformanceCase original = find("memory-ttl-unsupported");
+    ObjectNode changed = original.materialized().deepCopy();
+    ((ObjectNode) changed.at("/store")).put("retention_mode", "delete");
+    ((ObjectNode) changed.at("/store")).remove("ttl_grace_seconds");
+
+    CaseResult result = CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.FAILED, result.status(), result.reason());
+    assertEquals(0, result.failedOperation());
+  }
+
+  @Test
   void incorrectReadExpectationCannotBeUsedToGenerateStoredState() throws IOException {
     ConformanceCase original = find("core-replay-without-snapshot");
     ObjectNode changed = original.materialized().deepCopy();
