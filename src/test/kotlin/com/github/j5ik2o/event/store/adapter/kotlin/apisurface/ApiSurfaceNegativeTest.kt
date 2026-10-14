@@ -1,5 +1,7 @@
 package com.github.j5ik2o.event.store.adapter.kotlin.apisurface
 
+import com.fasterxml.jackson.databind.node.ArrayNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -61,6 +63,19 @@ class ApiSurfaceNegativeTest {
         assertEquals(
             listOf("event_store: type parameter P of EventStore is bounded by [kotlin.Comparable<P>]; want no bound"),
             check("EventStore", NarrowedTypeParameter::class),
+        )
+    }
+
+    @Test
+    fun `missing suspending store mapping is reported`() {
+        val mapping = ApiSurfaceFiles.mapping() as ObjectNode
+        val stores = mapping.path("stores") as ArrayNode
+        for (i in stores.size() - 1 downTo 0) {
+            if (stores.get(i).path("suspend").asBoolean(false)) stores.remove(i)
+        }
+        assertEquals(
+            listOf("mapping: stores has no suspending store"),
+            ApiSurfaceChecker(ApiSurfaceFiles.surface(), mapping).check(),
         )
     }
 }

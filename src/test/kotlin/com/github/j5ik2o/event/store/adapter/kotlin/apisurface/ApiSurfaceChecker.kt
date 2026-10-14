@@ -56,6 +56,14 @@ class ApiSurfaceChecker(
         for (name in surface.path("error_categories").path("names")) {
             text(mapping.path("error_categories").path("names").path(name.asText()), "error_categories.names.${name.asText()}")
         }
+        // The Kotlin surface promises both a synchronous and a suspending store; a missing entry would skip half the check.
+        val stores = mapping.path("stores")
+        if (stores.none { !it.path("suspend").asBoolean(false) }) {
+            issues.add("mapping: stores has no synchronous store")
+        }
+        if (stores.none { it.path("suspend").asBoolean(false) }) {
+            issues.add("mapping: stores has no suspending store")
+        }
         for (key in listOf("none", "optional", "list")) {
             text(mapping.path("containers").path(key), "containers.$key")
         }
