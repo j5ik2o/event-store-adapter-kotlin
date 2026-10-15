@@ -4,12 +4,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.j5ik2o.event.store.adapter.java.core.AggregateId;
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope;
+import com.github.j5ik2o.event.store.adapter.java.core.EventStore;
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope;
+import com.github.j5ik2o.event.store.adapter.java.core.SnapshotReadResult;
+import com.github.j5ik2o.event.store.adapter.java.memory.ConformanceMemoryOperations;
+import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage;
+import com.github.j5ik2o.event.store.adapter.kotlin.KotlinTestBinding;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -287,6 +299,147 @@ class MemoryCaseRunnerTest {
                       org.junit.jupiter.api.Assertions.assertFalse(
                           result.actual().has("initialization"));
                     }));
+  }
+
+  @Test
+  void newStoreCreatedMidScenarioIsEmptyAndIndependent() throws IOException {
+    CaseResult result =
+        CaseClassifier.classify(find("memory-store-new-independent"), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void sharedStoreCreatedMidScenarioSharesRecordsAndOptimisticLock() throws IOException {
+    CaseResult result = CaseClassifier.classify(find("memory-store-shared"), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void mutatingWrittenPayloadDoesNotChangeStoredValue() throws IOException {
+    CaseResult result =
+        CaseClassifier.classify(find("memory-payload-written-mutation"), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void mutatingReadPayloadDoesNotChangeStoredValueOrRecordedRead() throws IOException {
+    CaseResult result =
+        CaseClassifier.classify(find("memory-payload-read-mutation"), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void storeFactorySharingRecordsDespiteNewStorageIsRejected() throws IOException {
+    ConformanceCase c = find("memory-store-new-independent");
+    AtomicReference<MemoryStorage> first = new AtomicReference<>();
+    ConformanceMemoryOperations.StoreFactory alwaysFirstStorage =
+        (storage, config) -> {
+          first.compareAndSet(null, storage);
+          return KotlinTestBinding.memory(first.get(), config);
+        };
+
+    CaseResult result = runWith(c, alwaysFirstStorage);
+
+    assertEquals(ConformanceStatus.FAILED, result.status(), result.reason());
+    assertEquals(3, result.failedOperation());
+  }
+
+  @Test
+  void storeReturningStoredPayloadWithoutCopyingIsRejectedForBothMutations() throws IOException {
+    ConformanceMemoryOperations.StoreFactory aliasing = (storage, config) -> new AliasingStore();
+
+    CaseResult written = runWith(find("memory-payload-written-mutation"), aliasing);
+    CaseResult read = runWith(find("memory-payload-read-mutation"), aliasing);
+
+    assertEquals(ConformanceStatus.FAILED, written.status(), written.reason());
+    assertEquals(3, written.failedOperation());
+    assertEquals(ConformanceStatus.FAILED, read.status(), read.reason());
+    assertEquals(4, read.failedOperation());
+  }
+
+  @Test
+  void mutationThatChangesNothingCannotPass() throws IOException {
+    ConformanceCase original = find("memory-payload-written-mutation");
+    int index = mutationStepIndex(original, "mutateWrittenPayload");
+    for (ObjectNode changed :
+        List.of(
+            withMutationArgument(original, index, "pointer", "/items/5/qty"),
+            withMutationArgument(original, index, "value", 1))) {
+      CaseResult result = CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
+
+      assertTrue(
+          result.status() != ConformanceStatus.PASSED,
+          "mutation without effect passed: " + changed.at("/steps/" + index + "/arguments"));
+      assertEquals(ConformanceStatus.FAILED, result.status(), result.reason());
+    }
+  }
+
+  private static CaseResult runWith(
+      ConformanceCase c, ConformanceMemoryOperations.StoreFactory factory) {
+    return MemoryCaseRunner.run(
+        c,
+        actual -> ConformanceMemoryOperations.executeScenario(c.materialized(), actual, factory));
+  }
+
+  private static int mutationStepIndex(ConformanceCase c, String op) {
+    JsonNode steps = c.materialized().path("steps");
+    for (int i = 0; i < steps.size(); i++) {
+      if (op.equals(steps.get(i).path("op").asText())) {
+        return i;
+      }
+    }
+    throw new AssertionError(op);
+  }
+
+  private static ObjectNode withMutationArgument(
+      ConformanceCase original, int step, String name, Object value) {
+    ObjectNode changed = original.materialized().deepCopy();
+    ObjectNode arguments = (ObjectNode) changed.at("/steps/" + step + "/arguments");
+    if (value instanceof Integer) {
+      // データは整数を BigInteger として読むため、同じ表現で値を入れる。
+      arguments.put(name, java.math.BigInteger.valueOf((Integer) value));
+    } else {
+      arguments.put(name, value.toString());
+    }
+    return changed;
+  }
+
+  /** Keeps the received envelope and hands the very same instance back on read. */
+  private static final class AliasingStore implements EventStore<JsonNode, JsonNode> {
+    private final List<EventEnvelope<JsonNode>> events = new ArrayList<>();
+
+    @Override
+    public void persistEvent(EventEnvelope<JsonNode> event) {
+      events.add(event);
+    }
+
+    @Override
+    public void persistEventAndSnapshot(
+        EventEnvelope<JsonNode> event, SnapshotEnvelope<JsonNode> snapshot) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<SnapshotReadResult<JsonNode>> getLatestSnapshotById(AggregateId id) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<EventEnvelope<JsonNode>> getEventsByIdSinceSeqNr(AggregateId id, long seqNr) {
+      List<EventEnvelope<JsonNode>> found = new ArrayList<>();
+      for (EventEnvelope<JsonNode> event : events) {
+        if (event.aggregateId().typeName().equals(id.typeName())
+            && event.aggregateId().value().equals(id.value())
+            && event.seqNr() >= seqNr) {
+          found.add(event);
+        }
+      }
+      return found;
+    }
   }
 
   private static ConformanceCase find(String id) throws IOException {
