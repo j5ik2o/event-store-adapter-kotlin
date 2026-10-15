@@ -102,7 +102,7 @@ class CaseClassifierTest {
             .filter(c -> EXECUTABLE_CASE_IDS.contains(c.id()) || memoryExecutable(c))
             .map(ConformanceCase::id)
             .collect(Collectors.toSet());
-    assertEquals(61, memory.size());
+    assertEquals(65, memory.size());
     assertEquals(memory, required.get(Backend.MEMORY));
     Set<String> dynamodb = new java.util.HashSet<>(EXECUTABLE_CASE_IDS);
     Set<String> configuration =
