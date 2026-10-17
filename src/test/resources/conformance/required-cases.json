@@ -64,7 +64,8 @@
     "memory-store-new-independent",
     "memory-store-shared",
     "memory-payload-written-mutation",
-    "memory-payload-read-mutation"
+    "memory-payload-read-mutation",
+    "memory-store-shared-configuration"
   ],
   "dynamodb": [
     "aid-library-format",

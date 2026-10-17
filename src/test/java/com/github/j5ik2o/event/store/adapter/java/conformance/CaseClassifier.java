@@ -11,6 +11,15 @@ final class CaseClassifier {
 
   static final String REASON_HASH =
       "最初のメジャーにはハッシュを使う保存先がないため（DY-16。実装計画 5 章の受け入れ条件 1、2026-10-06 の決定）";
+  static final String REASON_UNPROVIDED_BACKEND =
+      "この言語はその保存先（SQLite・Spanner・Bigtable）を提供しないため対象外（backends にメモリも DynamoDB も含まない）";
+  static final String REASON_BIGTABLE_ENVELOPE =
+      "この言語は Bigtable の保存先を提供しないため、Bigtable の封筒の値の表（BT-D6a）は対象外";
+  private static final Set<String> BIGTABLE_ENVELOPE_OPERATIONS =
+      Set.of(
+          "encodeBigtableEventEnvelope",
+          "encodeBigtableSnapshotEnvelope",
+          "decodeBigtableEnvelope");
   static final String REASON_BACKEND = "保存先が backends に含まれない（設計文書 5.3 の 1）";
   static final String REASON_LAYOUT = "DynamoDB の配置の照合であり、メモリに該当しない（設計文書 5.4）";
   static final String REASON_MILLISECONDS =
@@ -39,6 +48,14 @@ final class CaseClassifier {
     if (c.operation().map("fnv1a64"::equals).orElse(false)) {
       return Optional.of(result(c, backend, ConformanceStatus.NOT_APPLICABLE, REASON_HASH));
     }
+    if (c.operation().map(BIGTABLE_ENVELOPE_OPERATIONS::contains).orElse(false)) {
+      return Optional.of(
+          result(c, backend, ConformanceStatus.NOT_APPLICABLE, REASON_BIGTABLE_ENVELOPE));
+    }
+    if (c.backends().map(CaseClassifier::providesNoSupportedBackend).orElse(false)) {
+      return Optional.of(
+          result(c, backend, ConformanceStatus.NOT_APPLICABLE, REASON_UNPROVIDED_BACKEND));
+    }
     if (c.backends().map(names -> !names.contains(backend.dataName())).orElse(false)) {
       return Optional.of(result(c, backend, ConformanceStatus.NOT_APPLICABLE, REASON_BACKEND));
     }
@@ -52,6 +69,13 @@ final class CaseClassifier {
       return Optional.of(result(c, backend, ConformanceStatus.UNREPRESENTABLE, REASON_CHANGE_FEED));
     }
     return Optional.empty();
+  }
+
+  private static boolean providesNoSupportedBackend(List<String> names) {
+    for (Backend b : Backend.values()) {
+      if (names.contains(b.dataName())) return false;
+    }
+    return true;
   }
 
   /** その保存先の一覧にあるのに成功していないケースか。判定はケース ID と保存先の組で行う。 */
