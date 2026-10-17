@@ -13,6 +13,7 @@ import com.github.j5ik2o.event.store.adapter.java.core.EventStore;
 import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope;
 import com.github.j5ik2o.event.store.adapter.java.core.SnapshotReadResult;
 import com.github.j5ik2o.event.store.adapter.java.memory.ConformanceMemoryOperations;
+import com.github.j5ik2o.event.store.adapter.java.memory.DefaultConfigurationStorageView;
 import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage;
 import com.github.j5ik2o.event.store.adapter.kotlin.KotlinTestBinding;
 import java.io.IOException;
@@ -317,6 +318,76 @@ class MemoryCaseRunnerTest {
   }
 
   @Test
+  void sharedStoreCreatedMidScenarioSharesConfiguration() throws IOException {
+    CaseResult result =
+        CaseClassifier.classify(find("memory-store-shared-configuration"), Backend.MEMORY);
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @Test
+  void sharedStoreKeepingItsOwnDefaultConfigurationIsRejectedForSharedConfigurationCase()
+      throws IOException {
+    ConformanceMemoryOperations.StoreFactory defaultConfigurationOnSecondOpen =
+        defaultConfigurationOnSecondOpen();
+
+    CaseResult result =
+        runWith(find("memory-store-shared-configuration"), defaultConfigurationOnSecondOpen);
+
+    assertEquals(ConformanceStatus.FAILED, result.status(), result.reason());
+    org.junit.jupiter.api.Assertions.assertNotNull(result.failedOperation());
+    // The shared store itself is created (operation 1); the failure comes from the configuration.
+    assertTrue(result.failedOperation() >= 2, "failed at " + result.failedOperation());
+  }
+
+  @Test
+  void sharedStoreKeepingItsOwnDefaultConfigurationStillSharesRecordsAndLock() throws IOException {
+    CaseResult result = runWith(find("memory-store-shared"), defaultConfigurationOnSecondOpen());
+
+    assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+  }
+
+  @TestFactory
+  Stream<DynamicTest> unknownElementsInTargetMemoryCasesRemainUnverified() {
+    return Stream.of(
+            "operation",
+            "fault-kind",
+            "fault-phase",
+            "seed-configuration",
+            "store-lock-wait-milliseconds")
+        .map(
+            element ->
+                dynamicTest(
+                    element,
+                    () -> {
+                      ConformanceCase original = find("core-retention-failure-after-commit");
+                      ObjectNode changed = original.materialized().deepCopy();
+                      switch (element) {
+                        case "operation":
+                          ((ArrayNode) changed.path("steps"))
+                              .addObject()
+                              .put("op", "holdWriteLock")
+                              .putObject("arguments");
+                          break;
+                        case "fault-kind":
+                          ((ObjectNode) changed.at("/faults/0")).put("kind", "transaction-aborted");
+                          break;
+                        case "fault-phase":
+                          ((ObjectNode) changed.at("/faults/0")).put("phase", "journal-write-tail");
+                          break;
+                        case "seed-configuration":
+                          changed.putObject("seed").putObject("configuration");
+                          break;
+                        default:
+                          ((ObjectNode) changed.at("/store")).put("lock_wait_milliseconds", 100);
+                      }
+                      CaseResult result =
+                          CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
+                      assertEquals(ConformanceStatus.UNVERIFIED, result.status(), result.reason());
+                    }));
+  }
+
+  @Test
   void mutatingWrittenPayloadDoesNotChangeStoredValue() throws IOException {
     CaseResult result =
         CaseClassifier.classify(find("memory-payload-written-mutation"), Backend.MEMORY);
@@ -376,6 +447,17 @@ class MemoryCaseRunnerTest {
           "mutation without effect passed: " + changed.at("/steps/" + index + "/arguments"));
       assertEquals(ConformanceStatus.FAILED, result.status(), result.reason());
     }
+  }
+
+  /** Opens the first storage as is and gives every later open a default-configuration view. */
+  private static ConformanceMemoryOperations.StoreFactory defaultConfigurationOnSecondOpen() {
+    AtomicReference<MemoryStorage> first = new AtomicReference<>();
+    return (storage, config) -> {
+      if (first.compareAndSet(null, storage)) {
+        return KotlinTestBinding.memory(storage, config);
+      }
+      return KotlinTestBinding.memory(DefaultConfigurationStorageView.of(storage), config);
+    };
   }
 
   private static CaseResult runWith(

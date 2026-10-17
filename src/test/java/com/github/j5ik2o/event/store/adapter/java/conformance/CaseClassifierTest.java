@@ -53,7 +53,7 @@ class CaseClassifierTest {
         CaseResult r = CaseClassifier.classify(c, b);
         if (EXECUTABLE_CASE_IDS.contains(c.id()) || (b == Backend.MEMORY && memoryExecutable(c))) {
           assertEquals(ConformanceStatus.PASSED, r.status(), c.id() + "/" + b);
-        } else if (b == Backend.MEMORY && c.changeFeed()) {
+        } else if (b == Backend.MEMORY && c.changeFeed() && !isUnprovidedBackendCase(c)) {
           assertEquals(ConformanceStatus.UNREPRESENTABLE, r.status(), c.id() + "/" + b);
           assertFalse(r.reason() == null || r.reason().isBlank(), c.id() + "/" + b);
         } else {
@@ -76,6 +76,115 @@ class CaseClassifierTest {
         assertTrue(r.reason().contains("ハッシュ"), r.reason());
       }
     }
+  }
+
+  private static boolean isUnprovidedBackendCase(ConformanceCase c) {
+    return c.file().startsWith("sqlite/")
+        || c.file().startsWith("spanner/")
+        || c.file().startsWith("bigtable/")
+        || c.file().equals("scenarios/stores/shared.json");
+  }
+
+  private static boolean isBigtableEnvelopeCase(ConformanceCase c) {
+    return c.file().equals("values/bigtable-envelope.json");
+  }
+
+  @Test
+  void bigtableEnvelopeValueCasesAreNotApplicableWithAReasonOnBothBackends() {
+    List<ConformanceCase> envelope =
+        data.cases().stream()
+            .filter(CaseClassifierTest::isBigtableEnvelopeCase)
+            .collect(Collectors.toList());
+    assertEquals(10, envelope.size());
+    for (ConformanceCase c : envelope) {
+      for (Backend b : Backend.values()) {
+        CaseResult r = CaseClassifier.classify(c, b);
+        assertEquals(ConformanceStatus.NOT_APPLICABLE, r.status(), c.id() + "/" + b);
+        assertTrue(r.reason().contains("Bigtable"), c.id() + "/" + b + ": " + r.reason());
+        assertTrue(r.reason().contains("提供しない"), c.id() + "/" + b + ": " + r.reason());
+      }
+    }
+  }
+
+  @Test
+  void casesOfUnprovidedBackendsAreNotApplicableWithAReasonAndNeverRequired() throws IOException {
+    List<ConformanceCase> unprovided =
+        data.cases().stream()
+            .filter(CaseClassifierTest::isUnprovidedBackendCase)
+            .collect(Collectors.toList());
+    assertFalse(unprovided.isEmpty());
+    Map<Backend, Set<String>> required = RequiredCases.load();
+    for (ConformanceCase c : unprovided) {
+      for (Backend b : Backend.values()) {
+        CaseResult r = CaseClassifier.classify(c, b);
+        assertEquals(ConformanceStatus.NOT_APPLICABLE, r.status(), c.id() + "/" + b);
+        assertTrue(r.reason().contains("提供しない"), c.id() + "/" + b + ": " + r.reason());
+        assertFalse(required.get(b).contains(c.id()), c.id() + "/" + b);
+        assertFalse(CaseClassifier.violatesRequirement(r, required), c.id() + "/" + b);
+      }
+    }
+  }
+
+  @Test
+  void sharedConfigurationCaseIsPassedOnMemoryAndRequiredOnlyThere() throws IOException {
+    ConformanceCase c = find("memory-store-shared-configuration");
+    Map<Backend, Set<String>> required = RequiredCases.load();
+
+    assertEquals(ConformanceStatus.PASSED, CaseClassifier.classify(c, Backend.MEMORY).status());
+    assertEquals(
+        ConformanceStatus.NOT_APPLICABLE, CaseClassifier.classify(c, Backend.DYNAMODB).status());
+    assertTrue(required.get(Backend.MEMORY).contains(c.id()));
+    assertFalse(required.get(Backend.DYNAMODB).contains(c.id()));
+  }
+
+  @Test
+  void reportShowsUnprovidedBackendRulesAsNotApplicableAndMem2WithTheSharedConfigurationCase()
+      throws IOException {
+    List<CaseResult> results = new java.util.ArrayList<>();
+    for (ConformanceCase c : data.cases()) {
+      if (isUnprovidedBackendCase(c)
+          || isBigtableEnvelopeCase(c)
+          || c.id().equals("memory-store-shared-configuration")) {
+        for (Backend b : Backend.values()) {
+          results.add(CaseClassifier.classify(c, b));
+        }
+      }
+    }
+    ConformanceReport report =
+        new ConformanceReport(
+            data.dataVersion(),
+            ManifestVerifier.verify(ConformanceTestFiles.REAL_ROOT),
+            "test",
+            null,
+            results,
+            data.coverageExclusions());
+
+    com.fasterxml.jackson.databind.JsonNode rules = report.toJson().path("rules");
+    Set<String> unprovidedPrefixes = new java.util.TreeSet<>();
+    boolean sawBtD6a = false;
+    boolean sawMem2Passed = false;
+    for (com.fasterxml.jackson.databind.JsonNode row : rules) {
+      String rule = row.path("rule").asText();
+      String status = row.path("status").asText();
+      for (String prefix : List.of("SQ-", "SPN-", "BT-")) {
+        if (rule.startsWith(prefix)) {
+          unprovidedPrefixes.add(prefix);
+          assertEquals("not-applicable", status, rule + "/" + row.path("case_id").asText());
+        }
+      }
+      if (rule.equals("BT-D6a")) {
+        sawBtD6a = true;
+      }
+      if (rule.equals("MEM-2")
+          && row.path("case_id").asText().equals("memory-store-shared-configuration")
+          && row.path("backend").asText().equals(Backend.MEMORY.reportName())) {
+        assertEquals("passed", status);
+        sawMem2Passed = true;
+      }
+    }
+    assertEquals(Set.of("SQ-", "SPN-", "BT-"), unprovidedPrefixes);
+    assertTrue(sawBtD6a);
+    assertTrue(sawMem2Passed);
   }
 
   @Test
@@ -102,7 +211,7 @@ class CaseClassifierTest {
             .filter(c -> EXECUTABLE_CASE_IDS.contains(c.id()) || memoryExecutable(c))
             .map(ConformanceCase::id)
             .collect(Collectors.toSet());
-    assertEquals(65, memory.size());
+    assertEquals(66, memory.size());
     assertEquals(memory, required.get(Backend.MEMORY));
     Set<String> dynamodb = new java.util.HashSet<>(EXECUTABLE_CASE_IDS);
     Set<String> configuration =
