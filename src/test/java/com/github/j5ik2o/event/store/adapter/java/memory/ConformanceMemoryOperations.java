@@ -64,6 +64,15 @@ public final class ConformanceMemoryOperations {
       result.put("unsupported", "メモリへ未接続のseed・時計・初期化観測がある");
       return;
     }
+    java.util.Iterator<String> storeFields = scenario.path("store").fieldNames();
+    while (storeFields.hasNext()) {
+      String field = storeFields.next();
+      if (!Set.of("retention_count", "retention_mode", "ttl_grace_seconds", "change_feed")
+          .contains(field)) {
+        result.put("unsupported", "メモリへ未接続の設定: " + field);
+        return;
+      }
+    }
     for (JsonNode step : scenario.path("steps")) {
       if (!Set.of(
               "persistEvent",
