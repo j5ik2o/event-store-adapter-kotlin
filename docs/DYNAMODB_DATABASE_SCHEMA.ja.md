@@ -30,7 +30,7 @@ Kotlinの生成入口はJava新公開ストアと[共通DynamoDBプロファイ�
 | 各表の設定 | `aid:S = "__config__"`、`store_id:S`、`layout_version:N = "1"`。journalは `seq_nr:N = "0"`、snapshotは `skey:N = "0"` も持つ |
 | ジャーナル | `aid:S`、`seq_nr:N`、`occurred_at:N`（エポックからの整数ナノ秒）、`manifest:S`、`payload:B` |
 | 現在のスナップショット | `aid:S`、`skey:N = "0"`、`seq_nr:N`、`manifest:S`、`payload:B`、`last_updated_at:N`（イベント時刻のエポックミリ秒） |
-| 印のない履歴 | 現在の属性の `skey` を `seq_nr` にし、`active_history_seq_nr:N = seq_nr` を追加 |
+| アクティブな履歴 | 現在の属性の `skey` を `seq_nr` にし、`active_history_seq_nr:N = seq_nr` を追加 |
 | 期限を付けた履歴 | 履歴の属性に `ttl:N`（エポック秒）を持ち、`active_history_seq_nr` は持たない |
 | ヘッド | `aid:S`、`type_name:S`、`seq_nr:N`、`events:L`。1件の `M` が `seq_nr:N`、`occurred_at:N`、`manifest:S`、`payload:B` を持つ |
 
