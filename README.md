@@ -4,9 +4,11 @@
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit/)
 
+## Overview
+
 A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory and DynamoDB storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.1`. See the [migration guide](docs/MIGRATION.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.1`. See the [migration guide](docs/MIGRATION_GUIDE.md).
 
 ## Installation
 
@@ -22,9 +24,9 @@ dependencies {
 }
 ```
 
-## Usage
+## Quick start
 
-Payload and aggregate types do not implement library interfaces. Build envelopes using the Java `core` types; serializers are selected when creating a store. The following example uses both memory factories, all four operations, and the asynchronous DynamoDB factory.
+Build envelopes using the Java `core` types. The following example uses both memory factories, all four operations, and the asynchronous DynamoDB factory.
 
 ```kotlin
 import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
@@ -83,22 +85,41 @@ suspend fun dynamoDbStore(client: DynamoDbAsyncClient): EventStoreAsync<String, 
 }
 ```
 
-For synchronous DynamoDB use `EventStore.ofDynamoDB(client, tables, config)` with a `DynamoDbClient`. Provision three independent tables before creating either store. Clients belong to the caller; stop using them only after outstanding requests reach their terminal state. Reuse a `MemoryStorage` to share records and its immutable retention settings; separate storage instances are independent.
+For synchronous DynamoDB use `EventStore.ofDynamoDB(client, tables, config)` with a `DynamoDbClient`.
 
 `getLatestSnapshotById` returns null only when the aggregate head is absent. A present `SnapshotReadResult` can have no snapshot, or a snapshot at a different sequence from its `headSeqNr()`. Replay starts at snapshot sequence + 1, or 1 if no snapshot exists. Event reads include the starting sequence and return every matching envelope in ascending order. Check that replay reaches the observed head. DynamoDB reads the head and current snapshot non-atomically, with strong consistency per item; a newer snapshot can legitimately be ahead of the observed head.
 
+Executable repository examples are in [synchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt) and [asynchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt) form.
+
+## Storages
+
+### Memory
+
+The memory storage lives in a single process. It does not persist to files, survive restarts, or share data across processes. Reuse a `MemoryStorage` to share records and its immutable retention settings; separate storage instances are independent.
+
+### DynamoDB
+
+Provision three independent tables before creating either store. Clients belong to the caller; stop using them only after outstanding requests reach their terminal state. For DynamoDB, keep the three tables in one Region and write to them only from that Region. Global tables (multi-Region replicas) are not supported. The table layout is described in the [table schema](docs/DYNAMODB_DATABASE_SCHEMA.md).
+
+## Serialization
+
+Payload and aggregate types do not implement library interfaces. Serializers are selected when creating a store, through `payloadSerializer` and `snapshotSerializer` on `EventStoreConfig.builder()`; the Quick start example uses `JsonPayloadSerializer.of(...)`.
+
+## Retention
+
 Retention is set on `MemoryStorage.create(RetentionPolicy.delete(n))` or `DynamoDbTableConfig.builder().retentionPolicy(...)`. No retention policy means only the current snapshot. Memory supports deletion; DynamoDB also supports `RetentionPolicy.ttl(n, graceSeconds)`. Retention failure is logged and can be observed through `EventStoreConfig.retentionFailureListener`; it does not undo a committed append.
+
+## Errors
 
 The Java `core` exception types preserve five classifications: `OptimisticLockException`, `ContractViolationException`, `SerializationException`, `ConfigurationException`, and `StorageException`. Contract violations retain `rule()` and `seqNr()`; wrapped causes are preserved. Suspending factories and operations use `kotlinx.coroutines.future.await`. Cancelling the caller cancels the awaited Java result; an already submitted storage request can still finish or commit. Await its independent terminal state before releasing caller-owned resources.
 
-Executable repository examples are in [synchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt) and [asynchronous](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt) form.
+## Migration
 
-The memory storage lives in a single process. It does not persist to files, survive restarts, or share data across processes. For DynamoDB, keep the three tables in one Region and write to them only from that Region. Global tables (multi-Region replicas) are not supported.
+The cutover from the old Kotlin API and DynamoDB layout is described in the [migration guide](docs/MIGRATION_GUIDE.md).
 
+## Conformance
 
-## Storage and verification
-
-See the [table schema](docs/DATABASE_SCHEMA.md) and [migration guide](docs/MIGRATION.md). Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
+Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
 
 ## License
 

@@ -1,14 +1,18 @@
+> この文書は [README.md](README.md) の日本語版です。英語版が正本で、食い違うときは英語版に従います。
+
 # event-store-adapter-kotlin
 
 [![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit/)
 
+## 概要
+
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、コルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.1` に依存します。[移行案内](docs/MIGRATION.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.1` に依存します。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
 
-## 導入方法
+## インストール
 
 Maven Central に公開しています。Gradleの `api` 依存を通じてJavaの公開型を利用できます。
 
@@ -22,9 +26,9 @@ dependencies {
 }
 ```
 
-## 使い方
+## はじめに
 
-ペイロードと集約状態にライブラリのインターフェイス実装は不要です。Javaの `core` 型で封筒を構築し、生成時にシリアライザを指定します。次の例はメモリの同期・非同期生成、4操作、非同期DynamoDB生成を使います。
+Javaの `core` 型で封筒を構築します。次の例はメモリの同期・非同期生成、4操作、非同期DynamoDB生成を使います。
 
 ```kotlin
 import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
@@ -83,22 +87,41 @@ suspend fun dynamoDbStore(client: DynamoDbAsyncClient): EventStoreAsync<String, 
 }
 ```
 
-同期DynamoDBは `DynamoDbClient` を使って `EventStore.ofDynamoDB(client, tables, config)` で生成します。独立した3表を事前に外部で用意してください。クライアントは呼出側が所有し、実行中要求の終端を待ってから解放します。同じ `MemoryStorage` を渡すと記録と不変の保持設定を共有し、別々に作った保存先は独立します。
+同期DynamoDBは `DynamoDbClient` を使って `EventStore.ofDynamoDB(client, tables, config)` で生成します。
 
 `getLatestSnapshotById` のnullは集約ヘッドの不存在です。存在する `SnapshotReadResult` の中でもスナップショットは不存在を表せ、その封筒の番号と `headSeqNr()` は独立しています。リプレイはスナップショット番号+1、封筒がなければ1から始めます。イベント取得は指定番号を含み、全対象の封筒を番号の昇順で返します。リプレイが読取時のヘッド番号に届いたか確認してください。DynamoDBはヘッドと現在のスナップショットを各項目の強整合で非原子的に読むため、封筒がヘッド番号より新しい組も有効です。
 
+実行可能なリポジトリ例は[同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt)と[非同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt)を参照してください。
+
+## 保存先
+
+### メモリ
+
+メモリの保存先は単一プロセスのメモリだけを使います。ファイルへの保存、再起動後の回復、プロセス間の共有はしません。同じ `MemoryStorage` を渡すと記録と不変の保持設定を共有し、別々に作った保存先は独立します。
+
+### DynamoDB
+
+独立した3表を事前に外部で用意してください。クライアントは呼出側が所有し、実行中要求の終端を待ってから解放します。DynamoDB では、3 つの表は同じリージョンに置き、書き込みもそのリージョンからだけ行ってください。グローバルテーブル（複数リージョンのレプリカ）は範囲外です。表の配置は[テーブル仕様](docs/DYNAMODB_DATABASE_SCHEMA.ja.md)を参照してください。
+
+## 直列化
+
+ペイロードと集約状態にライブラリのインターフェイス実装は不要です。シリアライザは生成時に、`EventStoreConfig.builder()` の `payloadSerializer` と `snapshotSerializer` で指定します。はじめにの例は `JsonPayloadSerializer.of(...)` を使います。
+
+## 保持
+
 保持は `MemoryStorage.create(RetentionPolicy.delete(n))` または `DynamoDbTableConfig.builder().retentionPolicy(...)` で指定します。未設定では現在のスナップショットだけを保存します。メモリは削除方式、DynamoDBは削除方式と `RetentionPolicy.ttl(n, graceSeconds)` による期限切れ方式を提供します。保持失敗はログと任意の `EventStoreConfig.retentionFailureListener` で通知し、確定した追記の成功は維持します。
+
+## エラー
 
 Javaの `core` 例外型で楽観ロック、契約違反、直列化、設定、保存先の5分類を区別できます。型は `OptimisticLockException`、`ContractViolationException`、`SerializationException`、`ConfigurationException`、`StorageException` です。契約違反の `rule()` と `seqNr()`、例外原因を保持します。非同期生成・操作は `kotlinx.coroutines.future.await` で待ちます。取消は待機しているJava完了結果へ伝わりますが、送信済みの保存先要求はその後も終端や確定へ到達し得ます。呼出側資源は実要求の終端後に解放してください。
 
-実行可能なリポジトリ例は[同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositorySync.kt)と[非同期](src/test/kotlin/com/github/j5ik2o/event/store/adapter/kotlin/internal/UserAccountRepositoryAsync.kt)を参照してください。
+## 移行
 
-メモリの保存先は単一プロセスのメモリだけを使います。ファイルへの保存、再起動後の回復、プロセス間の共有はしません。DynamoDB では、3 つの表は同じリージョンに置き、書き込みもそのリージョンからだけ行ってください。グローバルテーブル（複数リージョンのレプリカ）は範囲外です。
+旧Kotlin公開操作とDynamoDB配置からの切り替えは[移行ガイド](docs/MIGRATION_GUIDE.ja.md)に記載しています。
 
+## 適合
 
-## 保存形式と検証
-
-[テーブル仕様](docs/DATABASE_SCHEMA.ja.md)と[移行案内](docs/MIGRATION.ja.md)があります。Dockerを起動して `./gradlew build spotlessCheck` を実行します。試験はDynamoDB Local 3.3.1の固定ダイジェスト `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab` を使います。[配布適合データ](conformance/README.md)をKotlin入口経由で検査し、ケース・規則ごとの結果を `build/reports/conformance/report.json` へ保存します。
+Dockerを起動して `./gradlew build spotlessCheck` を実行します。試験はDynamoDB Local 3.3.1の固定ダイジェスト `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab` を使います。[配布適合データ](conformance/README.md)をKotlin入口経由で検査し、ケース・規則ごとの結果を `build/reports/conformance/report.json` へ保存します。
 
 ## ライセンス
 
