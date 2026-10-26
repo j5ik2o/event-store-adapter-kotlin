@@ -121,6 +121,8 @@ The cutover from the old Kotlin API and DynamoDB layout is described in the [mig
 
 Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
 
+To change this repository, see the [contributing guide](CONTRIBUTING.md).
+
 ## License
 
 [MIT](https://opensource.org/license/mit/).

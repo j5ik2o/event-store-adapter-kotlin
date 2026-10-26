@@ -123,6 +123,8 @@ Javaの `core` 例外型で楽観ロック、契約違反、直列化、設定�
 
 Dockerを起動して `./gradlew build spotlessCheck` を実行します。試験はDynamoDB Local 3.3.1の固定ダイジェスト `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab` を使います。[配布適合データ](conformance/README.md)をKotlin入口経由で検査し、ケース・規則ごとの結果を `build/reports/conformance/report.json` へ保存します。
 
+このリポジトリを変更する手順は[開発者向けの案内](CONTRIBUTING.ja.md)を参照してください。
+
 ## ライセンス
 
 [MITライセンス](https://opensource.org/license/mit/)です。
