@@ -25,7 +25,7 @@ This repository holds two copies derived from the hub. Both are read-only inputs
 - Gradle: use the Gradle Wrapper, `./gradlew`. It is pinned to Gradle 9.8.2 in `gradle/wrapper/gradle-wrapper.properties`.
 - JDK: CI installs JDK 11, the JDK of the test matrix, and JDK 25 for the test job, and the last JDK (25) runs Gradle. The build compiles for Java 11 (`jvmToolchain(11)` and `options.release.set(11)` in `build.gradle.kts`). The JVM that runs the tests is chosen with `-PtestJavaVersion` and defaults to 11. CI runs the test matrix with JDK 11, 17 and 19.
 - Docker: the DynamoDB tests need Docker. They use DynamoDB Local 3.3.1 at a pinned digest (see the Conformance section of [README.md](README.md)).
-- Python 3: it runs the documentation and conformance-data checks. CI uses Python 3.15.
+- Python 3: it runs the documentation and conformance-data checks. CI uses Python 3.15. `tools/user-docs/check.py` requires Python 3.10 or later.
 
 ## Checks
 
@@ -69,7 +69,7 @@ Note that the `JavaCompile` tasks depend on `spotlessApply` in `build.gradle.kts
 
 ## Design history
 
-This repository has no design documents of its own. The Kotlin design decisions are recorded in the hub's implementation plan (written in Japanese):
+This repository has no design documents of its own. The Kotlin design decisions are recorded in the hub's implementation plan:
 
 - [Implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)
 - [4.2 Main work for each language](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md#42-言語ごとの主な作業): Kotlin depends on the new Java API through `api(...)` and uses `await` from `kotlinx.coroutines`.
@@ -79,6 +79,6 @@ This repository has no design documents of its own. The Kotlin design decisions 
 
 - Open pull requests against `main`. CI has an aggregate job, `CI Success`, which waits for the lint, test and release-checks jobs.
 - The `version` file holds the version (currently `5.0.2-SNAPSHOT`). Do not bump it by hand.
-- Versions are bumped by the manual `Bump-Version` workflow (`workflow_dispatch`). Its inputs are `level` (`auto`, `patch`, `minor` or `major`), `force_bump` and `version`. It counts commits by their Conventional Commits prefix (`feat`, `fix`, `docs`, `chore` and so on) to decide the level.
-- Pushing a tag `vX.Y.Z` runs the `Release` workflow, which publishes to Sonatype. When CI succeeds on `main`, the `Snapshot` workflow publishes the snapshot.
+- Versions are bumped by the manual `Bump-Version` workflow (`workflow_dispatch`). Its inputs are `level` (`auto`, `patch`, `minor` or `major`), `force_bump` and `version`. Only `level=auto` derives the level from Conventional Commits. An explicit `level` is used directly. An explicit `version` bypasses level calculation and is used as the next version.
+- Pushing a tag `vX.Y.Z` runs the `Release` workflow, which publishes to Sonatype. After successful CI on `main`, `Snapshot` publishes only when the run is not from a pull request, the snapshot commit matches the successful CI commit, and that commit is still the tip of `main` immediately before publishing.
 - Dependency updates come from Renovate with the `chore(deps):` commit prefix.

@@ -25,7 +25,7 @@
 - Gradle: Gradle Wrapper の `./gradlew` を使います。`gradle/wrapper/gradle-wrapper.properties` で Gradle 9.8.2 に固定されています。
 - JDK: CI は test ジョブで JDK 11、試験の行列の JDK、JDK 25 を入れ、最後の JDK（25）で Gradle を動かします。ビルドは Java 11 向けにコンパイルします（`build.gradle.kts` の `jvmToolchain(11)` と `options.release.set(11)`）。試験を動かす JVM は `-PtestJavaVersion` で選び、既定は 11 です。CI は試験の行列を JDK 11、17、19 で実行します。
 - Docker: DynamoDB の試験には Docker が必要です。固定ダイジェストの DynamoDB Local 3.3.1 を使います（[README.ja.md](README.ja.md) の「適合」を参照）。
-- Python 3: 文書と適合データの検査を動かします。CI は Python 3.15 を使います。
+- Python 3: 文書と適合データの検査を動かします。CI は Python 3.15 を使います。 `tools/user-docs/check.py` は Python 3.10 以上が必要です。
 
 ## 検査
 
@@ -43,7 +43,7 @@ Lint:
 ./gradlew test -PtestJavaVersion=11
 ```
 
-ビルドと Lint をまとめて実行します（README.md の「適合」）。
+ビルドと Lint をまとめて実行します（[README.ja.md の「適合」](README.ja.md#適合)）。
 
 ```
 ./gradlew build spotlessCheck
@@ -69,7 +69,7 @@ python3 -m unittest discover -s .github/tests -v
 
 ## 設計の経緯
 
-このリポジトリには独自の設計文書がありません。Kotlin の設計判断は、ハブの実装計画（日本語）に記録されています。
+このリポジトリには独自の設計文書がありません。Kotlin の設計判断は、ハブの実装計画に記録されています。
 
 - [実装計画](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)
 - [4.2 言語ごとの主な作業](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md#42-言語ごとの主な作業): Kotlin は `api(...)` で Java の新しい API に依存し、`kotlinx.coroutines` の `await` を使います。
@@ -79,6 +79,6 @@ python3 -m unittest discover -s .github/tests -v
 
 - プルリクエストは `main` へ出します。CI の集約ジョブは `CI Success` で、lint、test、release-checks のジョブを待ちます。
 - `version` ファイルが版を持ちます（現在は `5.0.2-SNAPSHOT`）。手で版を上げないでください。
-- 版上げは、手動で実行する `Bump-Version` ワークフロー（`workflow_dispatch`）で行います。入力は `level`（`auto`、`patch`、`minor`、`major`）、`force_bump`、`version` です。Conventional Commits の接頭辞（`feat`、`fix`、`docs`、`chore` など）でコミットを数え、段階を決めます。
-- タグ `vX.Y.Z` を push すると `Release` ワークフローが Sonatype へ公開します。`main` の CI が成功すると `Snapshot` ワークフローがスナップショットを公開します。
+- 版上げは、手動で実行する `Bump-Version` ワークフロー（`workflow_dispatch`）で行います。入力は `level`（`auto`、`patch`、`minor`、`major`）、`force_bump`、`version` です。`level=auto` の場合だけ Conventional Commits から段階を算出します。`level` を明示した場合はその値を使います。`version` を明示した場合は段階を計算せず、指定した版を使います。
+- タグ `vX.Y.Z` を push すると `Release` ワークフローが Sonatype へ公開します。`main` の CI が成功した後、プルリクエストの実行ではなく、公開対象と成功した CI のコミットが一致し、公開直前もそのコミットが `main` の先頭である場合だけ、`Snapshot` ワークフローがスナップショットを公開します。
 - 依存の更新は Renovate が `chore(deps):` の接頭辞付きで出します。
