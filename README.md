@@ -8,7 +8,7 @@
 
 A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory, DynamoDB, SQLite, Spanner and Bigtable storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on the Java development build `5.0.2-SNAPSHOT`, which provides the SQLite, Spanner and Bigtable storages; the released Java `5.0.1` does not. See the [migration guide](docs/MIGRATION_GUIDE.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java `5.1.0`, which provides the SQLite, Spanner and Bigtable storages. See the [migration guide](docs/MIGRATION_GUIDE.md).
 
 ## Installation
 
@@ -18,13 +18,13 @@ The library is published to Maven Central. The Java public types are exported th
 repositories {
     mavenCentral()
 }
-val adapterVersion = "5.0.1"
+val adapterVersion = "5.1.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
 ```
 
-The SQLite, Spanner and Bigtable storages are not in Kotlin `5.0.1`; they are available from the release after `5.0.1`.
+The SQLite, Spanner and Bigtable storages are available in Kotlin `5.1.0`.
 
 ## Quick start
 

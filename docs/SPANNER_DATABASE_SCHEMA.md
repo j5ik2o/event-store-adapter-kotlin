@@ -1,6 +1,6 @@
 # Spanner storage schema
 
-This is the layout used by the Java package `com.github.j5ik2o.event.store.adapter.java.spanner`, which the Kotlin factories `EventStore.ofSpanner` and `EventStoreAsync.ofSpanner` wrap. The storage is not part of Java `5.0.1` or of the earlier Kotlin releases; it is available from the next release. The library follows the [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md) and its [Spanner profile](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/storage/spanner.md). Conformance data is 1.3.0. The stored `layout_version` is **1**, a separate storage-layout number. The tables use the same layout as the JavaScript v5 implementation.
+This is the layout used by the Java package `com.github.j5ik2o.event.store.adapter.java.spanner`, which the Kotlin factories `EventStore.ofSpanner` and `EventStoreAsync.ofSpanner` wrap. The storage first appears in Java `5.1.0` and Kotlin `5.1.0`; it is not part of earlier releases. The library follows the [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md) and its [Spanner profile](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/storage/spanner.md). Conformance data is 1.3.0. The stored `layout_version` is **1**, a separate storage-layout number. The tables use the same layout as the JavaScript v5 implementation.
 
 See [README](../README.md) for the public types and [MIGRATION_GUIDE](MIGRATION_GUIDE.md) for the version differences.
 
