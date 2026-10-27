@@ -70,10 +70,9 @@ final class ConformanceCase {
     return Optional.of(names);
   }
 
-  /** store.change_feed。省略時は false。 */
-  boolean changeFeed() {
-    JsonNode node = raw.path("store").get("change_feed");
-    return node != null && node.isBoolean() && node.booleanValue();
+  /** store.change_feed（省略時は false）。変更フィードの提供を求める設定か。 */
+  boolean changeFeedRequested() {
+    return materialized.path("store").path("change_feed").asBoolean(false);
   }
 
   Optional<String> timePrecision() {

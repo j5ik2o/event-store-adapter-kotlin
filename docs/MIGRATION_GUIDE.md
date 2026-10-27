@@ -2,7 +2,7 @@
 
 ## Overview
 
-Old Kotlin/Java DynamoDB layouts cannot be opened with the new factories. The [common implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md) specifies a user-controlled rewrite for this old layout; the Rust version 3 migration tool does not apply.
+Old Kotlin/Java DynamoDB layouts cannot be opened with the new factories. The [common implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md) specifies a user-controlled rewrite for this old layout; the Rust version 3 migration tool does not apply. SQLite, Spanner and Bigtable did not exist in any earlier Kotlin or Java release (they first appear in the Java development build `5.0.2-SNAPSHOT`), so there is no old data to move for them and no migration tool is provided.
 
 ## Code changes
 
@@ -15,6 +15,8 @@ This cutover removes the old Aggregate/Event inheritance, version argument, shar
 3. Define an explicit user conversion from old identifiers and payloads to typeName/value, event payload, occurredAt, manifest and aggregate state. Remove library metadata embedded in payloads only according to your domain mapping. Supply manifests explicitly or use the defined empty default. Map type names containing hyphens explicitly. Do not guess lost identifier/type information or restore nanoseconds that were lost in the old millisecond timestamps.
 4. Provision new independent journal, snapshot and head tables using the [new schema](DYNAMODB_DATABASE_SCHEMA.md). Generate the store with EventStore.ofDynamoDB or EventStoreAsync.ofDynamoDB to initialize and validate its three configuration items. Do not combine old and new tables.
 5. Rewrite each aggregate through the new public append operations in continuous sequence order starting at 1. Use persistEvent for events without a corresponding snapshot and persistEventAndSnapshot only when the snapshot reflects that event's sequence. Do not pass old version values or initialize an aggregate at its final sequence; the head is built by the continuous appends.
+
+To adopt SQLite, Spanner or Bigtable as a new installation, create the storage as its schema document describes ([SQLite](SQLITE_DATABASE_SCHEMA.md), [Spanner](SPANNER_DATABASE_SCHEMA.md), [Bigtable](BIGTABLE_DATABASE_SCHEMA.md)), open it with the Java public types, and pass it to `EventStore.ofSqlite`, `ofSpanner` or `ofBigtable` (or the `EventStoreAsync` equivalent). Then append the converted events as in step 5. The wrapper never closes the storage or the clients; the caller does.
 
 The wrapper contains no old-layout reader, compatibility alias, fallback, or automatic conversion. Memory data has process lifetime: create new storage and replay converted events if you need to move running application state.
 

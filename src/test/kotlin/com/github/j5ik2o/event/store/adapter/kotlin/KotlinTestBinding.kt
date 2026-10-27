@@ -1,5 +1,6 @@
 package com.github.j5ik2o.event.store.adapter.kotlin
 
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorage
 import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
 import com.github.j5ik2o.event.store.adapter.java.core.AsyncEventStore
 import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
@@ -8,6 +9,8 @@ import com.github.j5ik2o.event.store.adapter.java.core.SnapshotEnvelope
 import com.github.j5ik2o.event.store.adapter.java.core.SnapshotReadResult
 import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbTableConfig
 import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorage
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorage
 import kotlinx.coroutines.runBlocking
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
@@ -35,6 +38,33 @@ object KotlinTestBinding {
     ): JavaEventStore<P, A> {
         invoked("ofMemory")
         return syncFacade(EventStore.ofMemory(storage, config))
+    }
+
+    @JvmStatic
+    fun <P, A> sqlite(
+        storage: SqliteStorage,
+        config: EventStoreConfig<P, A>,
+    ): JavaEventStore<P, A> {
+        invoked("ofSqlite")
+        return syncFacade(EventStore.ofSqlite(storage, config))
+    }
+
+    @JvmStatic
+    fun <P, A> spanner(
+        storage: SpannerStorage,
+        config: EventStoreConfig<P, A>,
+    ): JavaEventStore<P, A> {
+        invoked("ofSpanner")
+        return syncFacade(EventStore.ofSpanner(storage, config))
+    }
+
+    @JvmStatic
+    fun <P, A> bigtable(
+        storage: BigtableStorage,
+        config: EventStoreConfig<P, A>,
+    ): JavaEventStore<P, A> {
+        invoked("ofBigtable")
+        return syncFacade(EventStore.ofBigtable(storage, config))
     }
 
     @JvmStatic

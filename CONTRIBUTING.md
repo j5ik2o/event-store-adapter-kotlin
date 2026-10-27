@@ -6,7 +6,7 @@
 
 This guide is for developers who change this repository. For using the library, see [README.md](README.md).
 
-The library is a thin Kotlin wrapper over the public Java distribution. The build depends on it through `api("io.github.j5ik2o:event-store-adapter-java:5.0.1")` in `build.gradle.kts`.
+The library is a thin Kotlin wrapper over the Java distribution. The build depends on it through `api("io.github.j5ik2o:event-store-adapter-java:5.0.2-SNAPSHOT")` in `build.gradle.kts`. The released Java `5.0.1` has no SQLite, Spanner or Bigtable storage; the development build provides them. After changing the version, resolve it once with `./gradlew --refresh-dependencies dependencies --configuration compileClasspath`, because old development builds linger in the Gradle cache.
 
 ## Shared contract and decisions
 
@@ -24,7 +24,7 @@ This repository holds two copies derived from the hub. Both are read-only inputs
 
 - Gradle: use the Gradle Wrapper, `./gradlew`. It is pinned to Gradle 9.8.2 in `gradle/wrapper/gradle-wrapper.properties`.
 - JDK: CI installs JDK 11, the JDK of the test matrix, and JDK 25 for the test job, and the last JDK (25) runs Gradle. The build compiles for Java 11 (`jvmToolchain(11)` and `options.release.set(11)` in `build.gradle.kts`). The JVM that runs the tests is chosen with `-PtestJavaVersion` and defaults to 11. CI runs the test matrix with JDK 11, 17 and 19.
-- Docker: the DynamoDB tests need Docker. They use DynamoDB Local 3.3.1 at a pinned digest (see the Conformance section of [README.md](README.md)).
+- Docker: the DynamoDB, Spanner and Bigtable tests need Docker. They use DynamoDB Local 3.3.1, the Cloud Spanner emulator 1.5.58 and the Cloud Bigtable emulator, each at a pinned digest (see the Conformance section of [README.md](README.md); the digests of the last two are in `SpannerEmulator` and `BigtableEmulator` under `src/test/java`, and CI pulls them before the tests). The SQLite tests use a real file in a temporary directory. A test that cannot start its emulator fails; it is never skipped.
 - Python 3: it runs the documentation and conformance-data checks. CI uses Python 3.15. `tools/user-docs/check.py` requires Python 3.10 or later.
 
 ## Checks
