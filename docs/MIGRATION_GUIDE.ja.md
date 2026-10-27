@@ -4,7 +4,7 @@
 
 ## 概要
 
-旧Kotlin/Java配置を新生成入口から直接開くことはできません。[共通実装計画](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)に従い、利用者が変換して書き直します。Rust第3版向けの移行ツールはこの配置へ適用しません。SQLite・Spanner・Bigtable は、これまでのどの Kotlin・Java の版にもなく（Java の開発版 `5.0.2-SNAPSHOT` で初めて現れます）、移すべき旧データがないため、移行ツールは提供しません。
+旧Kotlin/Java配置を新生成入口から直接開くことはできません。[共通実装計画](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)に従い、利用者が変換して書き直します。Rust第3版向けの移行ツールはこの配置へ適用しません。SQLite・Spanner・Bigtable は、これまでのどの Kotlin・Java の版にもなく（Java `5.1.0` で初めて現れます）、移すべき旧データがないため、移行ツールは提供しません。
 
 ## コードの変更
 

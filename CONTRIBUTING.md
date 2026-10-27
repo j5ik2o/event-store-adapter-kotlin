@@ -6,7 +6,7 @@
 
 This guide is for developers who change this repository. For using the library, see [README.md](README.md).
 
-The library is a thin Kotlin wrapper over the Java distribution. The build depends on it through `api("io.github.j5ik2o:event-store-adapter-java:5.0.2-SNAPSHOT")` in `build.gradle.kts`. The released Java `5.0.1` has no SQLite, Spanner or Bigtable storage; the development build provides them. After changing the version, resolve it once with `./gradlew --refresh-dependencies dependencies --configuration compileClasspath`, because old development builds linger in the Gradle cache.
+The library is a thin Kotlin wrapper over the Java distribution. The build depends on it through `api("io.github.j5ik2o:event-store-adapter-java:5.1.0")` in `build.gradle.kts`. Java `5.1.0`, released on Maven Central, provides the SQLite, Spanner and Bigtable storages.
 
 ## Shared contract and decisions
 
@@ -78,7 +78,7 @@ This repository has no design documents of its own. The Kotlin design decisions 
 ## Changes and releases
 
 - Open pull requests against `main`. CI has an aggregate job, `CI Success`, which waits for the lint, test and release-checks jobs.
-- The `version` file holds the version (currently `5.0.2-SNAPSHOT`). Do not bump it by hand.
+- The `version` file holds the version (a development version between releases). Do not bump it by hand.
 - Versions are bumped by the manual `Bump-Version` workflow (`workflow_dispatch`). Its inputs are `level` (`auto`, `patch`, `minor` or `major`), `force_bump` and `version`. Only `level=auto` derives the level from Conventional Commits. An explicit `level` is used directly. An explicit `version` bypasses level calculation and is used as the next version.
 - Pushing a tag `vX.Y.Z` runs the `Release` workflow, which publishes to Sonatype. After successful CI on `main`, `Snapshot` publishes only when the run is not from a pull request, the snapshot commit matches the successful CI commit, and that commit is still the tip of `main` immediately before publishing.
 - Dependency updates come from Renovate with the `chore(deps):` commit prefix.

@@ -10,7 +10,7 @@
 
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、SQLite、Spanner、Bigtable とコルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。SQLite・Spanner・Bigtable を提供する Java の開発版 `5.0.2-SNAPSHOT` に依存します。公開済みの Java `5.0.1` にはこれらの保存先がありません。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。SQLite・Spanner・Bigtable を提供する Java `5.1.0` に依存します。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
 
 ## インストール
 
@@ -20,13 +20,13 @@ Maven Central に公開しています。Gradleの `api` 依存を通じてJava�
 repositories {
     mavenCentral()
 }
-val adapterVersion = "5.0.1"
+val adapterVersion = "5.1.0"
 dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
 ```
 
-SQLite・Spanner・Bigtable の保存先は Kotlin `5.0.1` にはありません。`5.0.1` の次の版から使えます。
+SQLite・Spanner・Bigtable の保存先は Kotlin `5.1.0` で使えます。
 
 ## はじめに
 

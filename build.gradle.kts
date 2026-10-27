@@ -17,19 +17,6 @@ extra["isReleaseVersion"] = !version.toString().endsWith("SNAPSHOT")
 
 repositories {
     mavenCentral()
-
-    // 認証付き snapshot リポジトリ
-    maven {
-        name = "sonatypeSnapshots"
-        url  = uri("https://central.sonatype.com/repository/maven-snapshots/")
-        if (System.getenv("SONATYPE_USERNAME") != null) {
-            credentials {
-                username = System.getenv("SONATYPE_USERNAME")
-                password = System.getenv("SONATYPE_PASSWORD")
-            }
-        }
-        mavenContent { snapshotsOnly() }
-    }
 }
 
 dependencies {
@@ -50,7 +37,7 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    api("io.github.j5ik2o:event-store-adapter-java:5.0.2-SNAPSHOT")
+    api("io.github.j5ik2o:event-store-adapter-java:5.1.0")
     implementation("software.amazon.awssdk:dynamodb:2.57.4")
 }
 

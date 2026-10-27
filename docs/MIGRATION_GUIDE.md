@@ -2,7 +2,7 @@
 
 ## Overview
 
-Old Kotlin/Java DynamoDB layouts cannot be opened with the new factories. The [common implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md) specifies a user-controlled rewrite for this old layout; the Rust version 3 migration tool does not apply. SQLite, Spanner and Bigtable did not exist in any earlier Kotlin or Java release (they first appear in the Java development build `5.0.2-SNAPSHOT`), so there is no old data to move for them and no migration tool is provided.
+Old Kotlin/Java DynamoDB layouts cannot be opened with the new factories. The [common implementation plan](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md) specifies a user-controlled rewrite for this old layout; the Rust version 3 migration tool does not apply. SQLite, Spanner and Bigtable did not exist in any earlier Kotlin or Java release (they first appear in Java `5.1.0`), so there is no old data to move for them and no migration tool is provided.
 
 ## Code changes
 
