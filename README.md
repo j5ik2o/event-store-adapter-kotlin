@@ -24,6 +24,8 @@ dependencies {
 }
 ```
 
+The SQLite, Spanner and Bigtable storages are not in Kotlin `5.0.1`; they are available from the release after `5.0.1`.
+
 ## Quick start
 
 Build envelopes using the Java `core` types. The following example uses both memory factories, all four operations, and the asynchronous DynamoDB factory.
@@ -121,19 +123,31 @@ fun openSqliteStorage(
 ```
 
 ```kotlin
-val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
-openSqliteStorage(file, settings).use { storage ->
-    EventStore.ofSqlite(storage, config).persistEvent(first)
-}
-// After a restart the same call opens the same file.
-openSqliteStorage(file, settings).use { storage ->
-    val store = EventStoreAsync.ofSqlite(storage, config)
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.RetentionPolicy
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+
+suspend fun appendThenReopenSqlite(
+    file: Path,
+    config: EventStoreConfig<String, String>,
+    first: EventEnvelope<String>,
+): List<EventEnvelope<String>> {
+    val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
+    openSqliteStorage(file, settings).use { storage ->
+        EventStore.ofSqlite(storage, config).persistEvent(first)
+    }
+    // After a restart the same call opens the same file.
+    return openSqliteStorage(file, settings).use { storage ->
+        EventStoreAsync.ofSqlite(storage, config).getEventsByIdSinceSeqNr(first.aggregateId(), 1)
+    }
 }
 ```
 
 ### Spanner
 
-`EventStore.ofSpanner(storage, config)` and `EventStoreAsync.ofSpanner(storage, config)` wrap a `SpannerStorage`. Create the five tables and the configuration row outside the library, as the [table schema](docs/SPANNER_DATABASE_SCHEMA.md) describes; `SpannerStorage.open` only checks them. The caller owns the `DatabaseClient`. Opening again with the same table prefix, on the first start or after a restart, sees the same data.
+`EventStore.ofSpanner(storage, config)` and `EventStoreAsync.ofSpanner(storage, config)` wrap a `SpannerStorage`. Create the five tables and the configuration row outside the library, as the [table schema](docs/SPANNER_DATABASE_SCHEMA.md) describes. For the example below, create them with the table prefix `account` and no snapshot history: the configuration row has `keep_snapshot_count = NULL` and `retention_mode = 'delete'`, which matches `SpannerRetentionPolicy.none()`. The SQL in the schema document uses the prefix `esa` and keeps 3 snapshots, so replace the prefix and those two values. `SpannerStorage.open` only checks them. The caller owns the `DatabaseClient`. Opening again with the same table prefix, on the first start or after a restart, sees the same data.
 
 ```kotlin
 import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerRetentionPolicy

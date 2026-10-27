@@ -45,6 +45,13 @@ class StorageExamplesTest {
     }
 
     @Test
+    fun sqliteAppendExampleCompilesOnItsOwnAndReadsTheEventBackAfterReopening() {
+        val events = runBlocking { appendThenReopenSqlite(directory.resolve("append.db"), config(), event(1)) }
+
+        assertEquals(listOf(1L), events.map { it.seqNr() })
+    }
+
+    @Test
     fun spannerExampleOpensTheSameTablesOnFirstStartAndOnRestart() {
         val emulator = SpannerEmulator.shared()
         val prefix = emulator.createStore(null, SpannerEmulator.ConfigRow.matching(null, "delete", null))

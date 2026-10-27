@@ -26,6 +26,8 @@ dependencies {
 }
 ```
 
+SQLite・Spanner・Bigtable の保存先は Kotlin `5.0.1` にはありません。`5.0.1` の次の版から使えます。
+
 ## はじめに
 
 Javaの `core` 型で封筒を構築します。次の例はメモリの同期・非同期生成、4操作、非同期DynamoDB生成を使います。
@@ -123,19 +125,31 @@ fun openSqliteStorage(
 ```
 
 ```kotlin
-val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
-openSqliteStorage(file, settings).use { storage ->
-    EventStore.ofSqlite(storage, config).persistEvent(first)
-}
-// 再起動後も同じ呼び出しで同じファイルを開けます。
-openSqliteStorage(file, settings).use { storage ->
-    val store = EventStoreAsync.ofSqlite(storage, config)
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.RetentionPolicy
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+
+suspend fun appendThenReopenSqlite(
+    file: Path,
+    config: EventStoreConfig<String, String>,
+    first: EventEnvelope<String>,
+): List<EventEnvelope<String>> {
+    val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
+    openSqliteStorage(file, settings).use { storage ->
+        EventStore.ofSqlite(storage, config).persistEvent(first)
+    }
+    // 再起動後も同じ呼び出しで同じファイルを開けます。
+    return openSqliteStorage(file, settings).use { storage ->
+        EventStoreAsync.ofSqlite(storage, config).getEventsByIdSinceSeqNr(first.aggregateId(), 1)
+    }
 }
 ```
 
 ### Spanner
 
-`EventStore.ofSpanner(storage, config)` と `EventStoreAsync.ofSpanner(storage, config)` は `SpannerStorage` を包みます。5つの表と設定行は、[スキーマ文書](docs/SPANNER_DATABASE_SCHEMA.ja.md)のとおりライブラリの外で作ります。`SpannerStorage.open` は照合だけを行います。`DatabaseClient` の所有者は呼び出し側です。同じ表の接頭辞で開き直せば、初回の起動でも再起動でも同じデータが見えます。
+`EventStore.ofSpanner(storage, config)` と `EventStoreAsync.ofSpanner(storage, config)` は `SpannerStorage` を包みます。5つの表と設定行は、[スキーマ文書](docs/SPANNER_DATABASE_SCHEMA.ja.md)のとおりライブラリの外で作ります。次の例では、表の接頭辞を `account`、スナップショットの履歴なしで作ります。設定行は `keep_snapshot_count = NULL`、`retention_mode = 'delete'` とし、`SpannerRetentionPolicy.none()` に合わせます。スキーマ文書の SQL は接頭辞 `esa` とスナップショット3件の保持なので、接頭辞とこの2つの値を置き換えてください。`SpannerStorage.open` は照合だけを行います。`DatabaseClient` の所有者は呼び出し側です。同じ表の接頭辞で開き直せば、初回の起動でも再起動でも同じデータが見えます。
 
 ```kotlin
 import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerRetentionPolicy
