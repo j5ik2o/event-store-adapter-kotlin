@@ -4,7 +4,7 @@
 
 ## 概要
 
-旧Kotlin/Java配置を新生成入口から直接開くことはできません。[共通実装計画](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)に従い、利用者が変換して書き直します。Rust第3版向けの移行ツールはこの配置へ適用しません。
+旧Kotlin/Java配置を新生成入口から直接開くことはできません。[共通実装計画](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/plan/implementation-plan.md)に従い、利用者が変換して書き直します。Rust第3版向けの移行ツールはこの配置へ適用しません。SQLite・Spanner・Bigtable は、これまでのどの Kotlin・Java の版にもなく（Java の開発版 `5.0.2-SNAPSHOT` で初めて現れます）、移すべき旧データがないため、移行ツールは提供しません。
 
 ## コードの変更
 
@@ -17,6 +17,8 @@
 3. 旧識別子とペイロードからtypeName/value、イベント内容、occurredAt、manifest、集約状態への対応を利用者が明示します。旧ペイロード内のライブラリメタデータは、ドメインの対応に従って取り除きます。manifestは明示するか既定の空文字列を使います。ハイフンを含む型名は明示的に対応付けます。失われた識別子・型情報を推測せず、旧ミリ秒時刻から失われたナノ秒を補いません。
 4. [新配置](DYNAMODB_DATABASE_SCHEMA.ja.md)の独立journal・snapshot・head表を外部で作成します。EventStore.ofDynamoDBまたはEventStoreAsync.ofDynamoDBで3設定項目を初期化・照合します。旧表と新表を組み合わせません。
 5. 新公開追記操作を使い、各集約を1から連続する番号順で書き直します。対応するスナップショットがなければpersistEvent、同じ番号まで適用した状態がある場合だけpersistEventAndSnapshotを使います。旧versionを渡さず、最終番号から作成せず、連続追記でヘッドを構築します。
+
+SQLite・Spanner・Bigtable を新規に導入するときは、各スキーマ文書（[SQLite](SQLITE_DATABASE_SCHEMA.ja.md)、[Spanner](SPANNER_DATABASE_SCHEMA.ja.md)、[Bigtable](BIGTABLE_DATABASE_SCHEMA.ja.md)）のとおり保存先を用意し、Java の公開型で開いて、`EventStore.ofSqlite`・`ofSpanner`・`ofBigtable`（または `EventStoreAsync` の同名の関数）へ渡します。そのあと、手順5と同じように変換済みイベントを追記します。ラッパーは保存先もクライアントも閉じません。閉じるのは呼び出し側です。
 
 ラッパーは旧配置読取、互換alias、fallback、自動変換を提供しません。メモリはプロセス内の寿命なので、実行中状態を移す場合は新しい保存先を作り、変換済みイベントをリプレイします。
 

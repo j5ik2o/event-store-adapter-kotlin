@@ -6,9 +6,9 @@
 
 ## Overview
 
-A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory and DynamoDB storage and suspending operations. [日本語](README.ja.md)
+A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory, DynamoDB, SQLite, Spanner and Bigtable storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java distribution `5.0.1`. See the [migration guide](docs/MIGRATION_GUIDE.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on the Java development build `5.0.2-SNAPSHOT`, which provides the SQLite, Spanner and Bigtable storages; the released Java `5.0.1` does not. See the [migration guide](docs/MIGRATION_GUIDE.md).
 
 ## Installation
 
@@ -23,6 +23,8 @@ dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
 ```
+
+The SQLite, Spanner and Bigtable storages are not in Kotlin `5.0.1`; they are available from the release after `5.0.1`.
 
 ## Quick start
 
@@ -101,13 +103,111 @@ The memory storage lives in a single process. It does not persist to files, surv
 
 Provision three independent tables before creating either store. Clients belong to the caller; stop using them only after outstanding requests reach their terminal state. For DynamoDB, keep the three tables in one Region and write to them only from that Region. Global tables (multi-Region replicas) are not supported. The table layout is described in the [table schema](docs/DYNAMODB_DATABASE_SCHEMA.md).
 
+### SQLite
+
+`EventStore.ofSqlite(storage, config)` and `EventStoreAsync.ofSqlite(storage, config)` wrap a `SqliteStorage` that you have opened. The caller owns the storage and closes it; the wrapper never does. Prepare the file once with `SqliteStorage.initialize`, then open it with `SqliteStorage.open` on every start. The same function therefore works on the first start and on every restart. The layout is described in the [table schema](docs/SQLITE_DATABASE_SCHEMA.md).
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorage
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorageConfig
+import java.nio.file.Files
+import java.nio.file.Path
+
+fun openSqliteStorage(
+    file: Path,
+    settings: SqliteStorageConfig,
+): SqliteStorage {
+    if (Files.notExists(file)) SqliteStorage.initialize(file, settings)
+    return SqliteStorage.open(file, settings)
+}
+```
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.RetentionPolicy
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+
+suspend fun appendThenReopenSqlite(
+    file: Path,
+    config: EventStoreConfig<String, String>,
+    first: EventEnvelope<String>,
+): List<EventEnvelope<String>> {
+    val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
+    openSqliteStorage(file, settings).use { storage ->
+        EventStore.ofSqlite(storage, config).persistEvent(first)
+    }
+    // After a restart the same call opens the same file.
+    return openSqliteStorage(file, settings).use { storage ->
+        EventStoreAsync.ofSqlite(storage, config).getEventsByIdSinceSeqNr(first.aggregateId(), 1)
+    }
+}
+```
+
+### Spanner
+
+`EventStore.ofSpanner(storage, config)` and `EventStoreAsync.ofSpanner(storage, config)` wrap a `SpannerStorage`. Create the five tables and the configuration row outside the library, as the [table schema](docs/SPANNER_DATABASE_SCHEMA.md) describes. For the example below, create them with the table prefix `account` and no snapshot history: the configuration row has `keep_snapshot_count = NULL` and `retention_mode = 'delete'`, which matches `SpannerRetentionPolicy.none()`. The SQL in the schema document uses the prefix `esa` and keeps 3 snapshots, so replace the prefix and those two values. `SpannerStorage.open` only checks them. The caller owns the `DatabaseClient`. Opening again with the same table prefix, on the first start or after a restart, sees the same data.
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerRetentionPolicy
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorage
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorageConfig
+import com.google.cloud.spanner.DatabaseClient
+
+fun openSpannerStorage(
+    client: DatabaseClient,
+    tablePrefix: String,
+): SpannerStorage =
+    SpannerStorage.open(
+        client,
+        SpannerStorageConfig
+            .builder()
+            .tablePrefix(tablePrefix)
+            .retentionPolicy(SpannerRetentionPolicy.none())
+            .build(),
+    )
+```
+
+```kotlin
+val store = EventStore.ofSpanner(openSpannerStorage(client, "account"), config)
+```
+
+### Bigtable
+
+`EventStore.ofBigtable(storage, config)` and `EventStoreAsync.ofBigtable(storage, config)` wrap a `BigtableStorage`. Create the two tables with their column families outside the library, as the [table schema](docs/BIGTABLE_DATABASE_SCHEMA.md) describes. Call `BigtableStorage.initialize` once, on the first start only; a second call fails with `ConfigurationException`. Call `BigtableStorage.open` on every start. The caller owns the data and admin clients.
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorage
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorageConfig
+import com.google.cloud.bigtable.admin.v2.BigtableTableAdminClient
+import com.google.cloud.bigtable.data.v2.BigtableDataClient
+
+/** Call once, on the first start only; a second call fails with ConfigurationException. */
+fun initializeBigtableOnce(
+    data: BigtableDataClient,
+    settings: BigtableStorageConfig,
+) = BigtableStorage.initialize(data, settings)
+
+fun openBigtableStorage(
+    data: BigtableDataClient,
+    admin: BigtableTableAdminClient,
+    settings: BigtableStorageConfig,
+): BigtableStorage = BigtableStorage.open(data, admin, settings)
+```
+
+```kotlin
+initializeBigtableOnce(data, settings) // first start only
+val store = EventStore.ofBigtable(openBigtableStorage(data, admin, settings), config)
+```
+
 ## Serialization
 
 Payload and aggregate types do not implement library interfaces. Serializers are selected when creating a store, through `payloadSerializer` and `snapshotSerializer` on `EventStoreConfig.builder()`; the Quick start example uses `JsonPayloadSerializer.of(...)`.
 
 ## Retention
 
-Retention is set on `MemoryStorage.create(RetentionPolicy.delete(n))` or `DynamoDbTableConfig.builder().retentionPolicy(...)`. No retention policy means only the current snapshot. Memory supports deletion; DynamoDB also supports `RetentionPolicy.ttl(n, graceSeconds)`. Retention failure is logged and can be observed through `EventStoreConfig.retentionFailureListener`; it does not undo a committed append.
+Retention is set on `MemoryStorage.create(RetentionPolicy.delete(n))` or `DynamoDbTableConfig.builder().retentionPolicy(...)`. No retention policy means only the current snapshot. Memory, SQLite and Bigtable support deletion with `RetentionPolicy.delete(n)`; Spanner uses `SpannerRetentionPolicy`; DynamoDB also supports `RetentionPolicy.ttl(n, graceSeconds)`. Retention failure is logged and can be observed through `EventStoreConfig.retentionFailureListener`; it does not undo a committed append.
 
 ## Errors
 
@@ -119,7 +219,7 @@ The cutover from the old Kotlin API and DynamoDB layout is described in the [mig
 
 ## Conformance
 
-Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
+Run `./gradlew build spotlessCheck` with Docker available. Tests use DynamoDB Local 3.3.1 at digest `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`, the Cloud Spanner emulator 1.5.58 and the Cloud Bigtable emulator, each pinned by digest in the test helpers; SQLite uses a real file. The distributed [conformance data](conformance/README.md) is checked through Kotlin entry points; the report is written to `build/reports/conformance/report.json` with case and rule results.
 
 To change this repository, see the [contributing guide](CONTRIBUTING.md).
 

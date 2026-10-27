@@ -6,7 +6,7 @@
 
 この案内は、このリポジトリを変更する開発者向けです。ライブラリの使い方は [README.ja.md](README.ja.md) を参照してください。
 
-このライブラリは、公開されている Java 配布の上にある薄い Kotlin の包みです。ビルドは `build.gradle.kts` の `api("io.github.j5ik2o:event-store-adapter-java:5.0.1")` でそれに依存します。
+このライブラリは、Java 配布の上にある薄い Kotlin の包みです。ビルドは `build.gradle.kts` の `api("io.github.j5ik2o:event-store-adapter-java:5.0.2-SNAPSHOT")` でそれに依存します。公開済みの Java `5.0.1` には SQLite・Spanner・Bigtable の保存先がなく、開発版が提供します。版を変えたあとは、古い開発版が Gradle のキャッシュに残りやすいので、`./gradlew --refresh-dependencies dependencies --configuration compileClasspath` で一度取り直してください。
 
 ## 共有する契約と設計判断
 
@@ -24,7 +24,7 @@
 
 - Gradle: Gradle Wrapper の `./gradlew` を使います。`gradle/wrapper/gradle-wrapper.properties` で Gradle 9.8.2 に固定されています。
 - JDK: CI は test ジョブで JDK 11、試験の行列の JDK、JDK 25 を入れ、最後の JDK（25）で Gradle を動かします。ビルドは Java 11 向けにコンパイルします（`build.gradle.kts` の `jvmToolchain(11)` と `options.release.set(11)`）。試験を動かす JVM は `-PtestJavaVersion` で選び、既定は 11 です。CI は試験の行列を JDK 11、17、19 で実行します。
-- Docker: DynamoDB の試験には Docker が必要です。固定ダイジェストの DynamoDB Local 3.3.1 を使います（[README.ja.md](README.ja.md) の「適合」を参照）。
+- Docker: DynamoDB・Spanner・Bigtable の試験には Docker が必要です。固定ダイジェストの DynamoDB Local 3.3.1、Cloud Spanner エミュレーター 1.5.58、Cloud Bigtable エミュレーターを使います（[README.ja.md](README.ja.md) の「適合」を参照。後ろの2つのダイジェストは `src/test/java` の `SpannerEmulator` と `BigtableEmulator` にあり、CI が試験の前に取得します）。SQLite の試験は一時ディレクトリの実ファイルを使います。エミュレーターを起動できない試験は失敗し、飛ばされることはありません。
 - Python 3: 文書と適合データの検査を動かします。CI は Python 3.15 を使います。 `tools/user-docs/check.py` は Python 3.10 以上が必要です。
 
 ## 検査

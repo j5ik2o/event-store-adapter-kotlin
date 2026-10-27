@@ -8,9 +8,9 @@
 
 ## 概要
 
-[Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、コルーチンの中断関数を提供します。[English](README.md)
+[Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、SQLite、Spanner、Bigtable とコルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。Java配布 `5.0.1` に依存します。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。SQLite・Spanner・Bigtable を提供する Java の開発版 `5.0.2-SNAPSHOT` に依存します。公開済みの Java `5.0.1` にはこれらの保存先がありません。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
 
 ## インストール
 
@@ -25,6 +25,8 @@ dependencies {
     implementation("io.github.j5ik2o:event-store-adapter-kotlin:${adapterVersion}")
 }
 ```
+
+SQLite・Spanner・Bigtable の保存先は Kotlin `5.0.1` にはありません。`5.0.1` の次の版から使えます。
 
 ## はじめに
 
@@ -103,13 +105,111 @@ suspend fun dynamoDbStore(client: DynamoDbAsyncClient): EventStoreAsync<String, 
 
 独立した3表を事前に外部で用意してください。クライアントは呼出側が所有し、実行中要求の終端を待ってから解放します。DynamoDB では、3 つの表は同じリージョンに置き、書き込みもそのリージョンからだけ行ってください。グローバルテーブル（複数リージョンのレプリカ）は範囲外です。表の配置は[テーブル仕様](docs/DYNAMODB_DATABASE_SCHEMA.ja.md)を参照してください。
 
+### SQLite
+
+`EventStore.ofSqlite(storage, config)` と `EventStoreAsync.ofSqlite(storage, config)` は、呼び出し側が開いた `SqliteStorage` を包みます。保存先の所有者は呼び出し側で、閉じるのも呼び出し側です。包む層は閉じません。ファイルは `SqliteStorage.initialize` で一度だけ用意し、起動のたびに `SqliteStorage.open` で開きます。そのため、次の関数は初回の起動でも再起動でもそのまま使えます。配置は[スキーマ文書](docs/SQLITE_DATABASE_SCHEMA.ja.md)を参照してください。
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorage
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorageConfig
+import java.nio.file.Files
+import java.nio.file.Path
+
+fun openSqliteStorage(
+    file: Path,
+    settings: SqliteStorageConfig,
+): SqliteStorage {
+    if (Files.notExists(file)) SqliteStorage.initialize(file, settings)
+    return SqliteStorage.open(file, settings)
+}
+```
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
+import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
+import com.github.j5ik2o.event.store.adapter.java.core.RetentionPolicy
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStore
+import com.github.j5ik2o.event.store.adapter.kotlin.EventStoreAsync
+
+suspend fun appendThenReopenSqlite(
+    file: Path,
+    config: EventStoreConfig<String, String>,
+    first: EventEnvelope<String>,
+): List<EventEnvelope<String>> {
+    val settings = SqliteStorageConfig.builder().retentionPolicy(RetentionPolicy.none()).build()
+    openSqliteStorage(file, settings).use { storage ->
+        EventStore.ofSqlite(storage, config).persistEvent(first)
+    }
+    // 再起動後も同じ呼び出しで同じファイルを開けます。
+    return openSqliteStorage(file, settings).use { storage ->
+        EventStoreAsync.ofSqlite(storage, config).getEventsByIdSinceSeqNr(first.aggregateId(), 1)
+    }
+}
+```
+
+### Spanner
+
+`EventStore.ofSpanner(storage, config)` と `EventStoreAsync.ofSpanner(storage, config)` は `SpannerStorage` を包みます。5つの表と設定行は、[スキーマ文書](docs/SPANNER_DATABASE_SCHEMA.ja.md)のとおりライブラリの外で作ります。次の例では、表の接頭辞を `account`、スナップショットの履歴なしで作ります。設定行は `keep_snapshot_count = NULL`、`retention_mode = 'delete'` とし、`SpannerRetentionPolicy.none()` に合わせます。スキーマ文書の SQL は接頭辞 `esa` とスナップショット3件の保持なので、接頭辞とこの2つの値を置き換えてください。`SpannerStorage.open` は照合だけを行います。`DatabaseClient` の所有者は呼び出し側です。同じ表の接頭辞で開き直せば、初回の起動でも再起動でも同じデータが見えます。
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerRetentionPolicy
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorage
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorageConfig
+import com.google.cloud.spanner.DatabaseClient
+
+fun openSpannerStorage(
+    client: DatabaseClient,
+    tablePrefix: String,
+): SpannerStorage =
+    SpannerStorage.open(
+        client,
+        SpannerStorageConfig
+            .builder()
+            .tablePrefix(tablePrefix)
+            .retentionPolicy(SpannerRetentionPolicy.none())
+            .build(),
+    )
+```
+
+```kotlin
+val store = EventStore.ofSpanner(openSpannerStorage(client, "account"), config)
+```
+
+### Bigtable
+
+`EventStore.ofBigtable(storage, config)` と `EventStoreAsync.ofBigtable(storage, config)` は `BigtableStorage` を包みます。列ファミリーを持つ2つの表は、[スキーマ文書](docs/BIGTABLE_DATABASE_SCHEMA.ja.md)のとおりライブラリの外で作ります。`BigtableStorage.initialize` は初回の起動でだけ一度呼びます。2回目は `ConfigurationException` で失敗します。`BigtableStorage.open` は起動のたびに呼びます。データ用と管理用のクライアントの所有者は呼び出し側です。
+
+```kotlin
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorage
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorageConfig
+import com.google.cloud.bigtable.admin.v2.BigtableTableAdminClient
+import com.google.cloud.bigtable.data.v2.BigtableDataClient
+
+/** Call once, on the first start only; a second call fails with ConfigurationException. */
+fun initializeBigtableOnce(
+    data: BigtableDataClient,
+    settings: BigtableStorageConfig,
+) = BigtableStorage.initialize(data, settings)
+
+fun openBigtableStorage(
+    data: BigtableDataClient,
+    admin: BigtableTableAdminClient,
+    settings: BigtableStorageConfig,
+): BigtableStorage = BigtableStorage.open(data, admin, settings)
+```
+
+```kotlin
+initializeBigtableOnce(data, settings) // 初回の起動だけ
+val store = EventStore.ofBigtable(openBigtableStorage(data, admin, settings), config)
+```
+
 ## 直列化
 
 ペイロードと集約状態にライブラリのインターフェイス実装は不要です。シリアライザは生成時に、`EventStoreConfig.builder()` の `payloadSerializer` と `snapshotSerializer` で指定します。はじめにの例は `JsonPayloadSerializer.of(...)` を使います。
 
 ## 保持
 
-保持は `MemoryStorage.create(RetentionPolicy.delete(n))` または `DynamoDbTableConfig.builder().retentionPolicy(...)` で指定します。未設定では現在のスナップショットだけを保存します。メモリは削除方式、DynamoDBは削除方式と `RetentionPolicy.ttl(n, graceSeconds)` による期限切れ方式を提供します。保持失敗はログと任意の `EventStoreConfig.retentionFailureListener` で通知し、確定した追記の成功は維持します。
+保持は `MemoryStorage.create(RetentionPolicy.delete(n))` または `DynamoDbTableConfig.builder().retentionPolicy(...)` で指定します。未設定では現在のスナップショットだけを保存します。メモリ・SQLite・Bigtable は `RetentionPolicy.delete(n)` による削除方式、Spanner は `SpannerRetentionPolicy`、DynamoDBは削除方式と `RetentionPolicy.ttl(n, graceSeconds)` による期限切れ方式を提供します。保持失敗はログと任意の `EventStoreConfig.retentionFailureListener` で通知し、確定した追記の成功は維持します。
 
 ## エラー
 
@@ -121,7 +221,7 @@ Javaの `core` 例外型で楽観ロック、契約違反、直列化、設定�
 
 ## 適合
 
-Dockerを起動して `./gradlew build spotlessCheck` を実行します。試験はDynamoDB Local 3.3.1の固定ダイジェスト `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab` を使います。[配布適合データ](conformance/README.md)をKotlin入口経由で検査し、ケース・規則ごとの結果を `build/reports/conformance/report.json` へ保存します。
+Dockerを起動して `./gradlew build spotlessCheck` を実行します。試験はDynamoDB Local 3.3.1の固定ダイジェスト `sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab`、Cloud Spanner エミュレーター 1.5.58、Cloud Bigtable エミュレーター（いずれも試験補助の中でダイジェスト固定）を使い、SQLite は実ファイルで試験します。[配布適合データ](conformance/README.md)をKotlin入口経由で検査し、ケース・規則ごとの結果を `build/reports/conformance/report.json` へ保存します。
 
 このリポジトリを変更する手順は[開発者向けの案内](CONTRIBUTING.ja.md)を参照してください。
 

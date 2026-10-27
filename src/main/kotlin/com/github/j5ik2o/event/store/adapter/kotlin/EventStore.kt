@@ -1,5 +1,7 @@
 package com.github.j5ik2o.event.store.adapter.kotlin
 
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableEventStore
+import com.github.j5ik2o.event.store.adapter.java.bigtable.BigtableStorage
 import com.github.j5ik2o.event.store.adapter.java.core.AggregateId
 import com.github.j5ik2o.event.store.adapter.java.core.EventEnvelope
 import com.github.j5ik2o.event.store.adapter.java.core.EventStoreConfig
@@ -9,6 +11,10 @@ import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbEventStore
 import com.github.j5ik2o.event.store.adapter.java.dynamodb.DynamoDbTableConfig
 import com.github.j5ik2o.event.store.adapter.java.memory.MemoryEventStore
 import com.github.j5ik2o.event.store.adapter.java.memory.MemoryStorage
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerEventStore
+import com.github.j5ik2o.event.store.adapter.java.spanner.SpannerStorage
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteEventStore
+import com.github.j5ik2o.event.store.adapter.java.sqlite.SqliteStorage
 import com.github.j5ik2o.event.store.adapter.kotlin.internal.JavaEventStoreAdapter
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
 import com.github.j5ik2o.event.store.adapter.java.core.EventStore as JavaEventStore
@@ -28,6 +34,24 @@ interface EventStore<P, A> {
             tables: DynamoDbTableConfig,
             config: EventStoreConfig<P, A>,
         ): EventStore<P, A> = fromJava(DynamoDbEventStore.create(client, tables, config))
+
+        /** Wraps an opened SQLite storage; the caller owns and closes it. / 開いたSQLite保存先を包み、閉じる責任は呼出側にあります。 */
+        fun <P, A> ofSqlite(
+            storage: SqliteStorage,
+            config: EventStoreConfig<P, A>,
+        ): EventStore<P, A> = fromJava(SqliteEventStore.create(storage, config))
+
+        /** Wraps an opened Spanner storage; the caller owns the client. / 開いたSpanner保存先を包み、クライアントは呼出側が所有します。 */
+        fun <P, A> ofSpanner(
+            storage: SpannerStorage,
+            config: EventStoreConfig<P, A>,
+        ): EventStore<P, A> = fromJava(SpannerEventStore.create(storage, config))
+
+        /** Wraps an opened Bigtable storage; the caller owns both clients. / 開いたBigtable保存先を包み、クライアントは呼出側が所有します。 */
+        fun <P, A> ofBigtable(
+            storage: BigtableStorage,
+            config: EventStoreConfig<P, A>,
+        ): EventStore<P, A> = fromJava(BigtableEventStore.create(storage, config))
 
         /** Wraps the new Java public interface. / 新しいJava公開インターフェイスを包みます。 */
         fun <P, A> fromJava(underlying: JavaEventStore<P, A>): EventStore<P, A> = JavaEventStoreAdapter(underlying)
