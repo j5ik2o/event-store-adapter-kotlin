@@ -2,9 +2,15 @@
 
 # event-store-adapter-kotlin
 
-[![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.j5ik2o/event-store-adapter-kotlin)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit/)
+[![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml?query=branch%3Amain)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.j5ik2o/event-store-adapter-kotlin.svg)](https://central.sonatype.com/artifact/io.github.j5ik2o/event-store-adapter-kotlin)
+[![javadoc](https://img.shields.io/maven-central/v/io.github.j5ik2o/event-store-adapter-kotlin.svg?label=javadoc)](https://javadoc.io/doc/io.github.j5ik2o/event-store-adapter-kotlin)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-purple.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/blob/main/build.gradle.kts)
+[![Java](https://img.shields.io/badge/Java-11%2B-blue.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/blob/main/build.gradle.kts)
+[![Contract v5](https://img.shields.io/badge/contract-v5-blueviolet.svg)](https://github.com/j5ik2o/event-store-adapter/tree/contract-v5/docs/spec)
+[![Storages](https://img.shields.io/badge/storages-memory%20%7C%20DynamoDB%20%7C%20SQLite%20%7C%20Spanner%20%7C%20Bigtable-informational.svg)](https://github.com/j5ik2o/event-store-adapter/tree/main/docs/spec/storage)
+[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin#license)
 
 ## 概要
 
@@ -227,4 +233,4 @@ Dockerを起動して `./gradlew build spotlessCheck` を実行します。試�
 
 ## ライセンス
 
-[MITライセンス](https://opensource.org/license/mit/)です。
+MIT と Apache-2.0 のどちらかを選べる二重ライセンス（`MIT OR Apache-2.0`）です。[LICENSE-MIT](LICENSE-MIT) と [LICENSE-APACHE](LICENSE-APACHE) を参照してください。
