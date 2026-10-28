@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/workflows/ci.yml?query=branch%3Amain)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.j5ik2o/event-store-adapter-kotlin.svg)](https://central.sonatype.com/artifact/io.github.j5ik2o/event-store-adapter-kotlin)
-[![javadoc](https://img.shields.io/maven-central/v/io.github.j5ik2o/event-store-adapter-kotlin.svg?label=javadoc)](https://javadoc.io/doc/io.github.j5ik2o/event-store-adapter-kotlin)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4-purple.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/blob/main/build.gradle.kts)
 [![Java](https://img.shields.io/badge/Java-11%2B-blue.svg)](https://github.com/j5ik2o/event-store-adapter-kotlin/blob/main/build.gradle.kts)
 [![Contract v5](https://img.shields.io/badge/contract-v5-blueviolet.svg)](https://github.com/j5ik2o/event-store-adapter/tree/contract-v5/docs/spec)
