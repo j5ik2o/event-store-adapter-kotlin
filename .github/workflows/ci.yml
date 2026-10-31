@@ -112,7 +112,7 @@ jobs:
           ' "$report" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload conformance report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: conformance-report-jdk${{ matrix.java }}
           path: |
