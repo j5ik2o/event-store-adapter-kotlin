@@ -151,14 +151,13 @@ class MemoryCaseRunnerTest {
     return ConformanceDataLoader.load(ConformanceTestFiles.REAL_ROOT).cases().stream()
         .filter(c -> c.file().startsWith("scenarios/core/"))
         .filter(c -> !c.timePrecision().map("milliseconds"::equals).orElse(false))
-        .map(
-            c ->
-                dynamicTest(
-                    c.id(),
-                    () -> {
-                      CaseResult result = CaseClassifier.classify(c, Backend.MEMORY);
-                      assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
-                    }));
+        .map(c ->
+            dynamicTest(
+                c.id(),
+                () -> {
+                  CaseResult result = CaseClassifier.classify(c, Backend.MEMORY);
+                  assertEquals(ConformanceStatus.PASSED, result.status(), result.reason());
+                }));
   }
 
   @Test
@@ -255,17 +254,16 @@ class MemoryCaseRunnerTest {
     return ConformanceDataLoader.load(ConformanceTestFiles.REAL_ROOT).cases().stream()
         .filter(c -> c.operation().map("validateOccurredAt"::equals).orElse(false))
         .filter(c -> !c.timePrecision().map("milliseconds"::equals).orElse(false))
-        .map(
-            c ->
-                dynamicTest(
-                    c.id(),
-                    () -> {
-                      CaseResult memory = CaseClassifier.classify(c, Backend.MEMORY);
-                      assertEquals(ConformanceStatus.PASSED, memory.status(), memory.reason());
-                      assertEquals(
-                          ConformanceStatus.UNVERIFIED,
-                          CaseClassifier.classify(c, Backend.DYNAMODB).status());
-                    }));
+        .map(c ->
+            dynamicTest(
+                c.id(),
+                () -> {
+                  CaseResult memory = CaseClassifier.classify(c, Backend.MEMORY);
+                  assertEquals(ConformanceStatus.PASSED, memory.status(), memory.reason());
+                  assertEquals(
+                      ConformanceStatus.UNVERIFIED,
+                      CaseClassifier.classify(c, Backend.DYNAMODB).status());
+                }));
   }
 
   @Test
@@ -282,24 +280,23 @@ class MemoryCaseRunnerTest {
   @TestFactory
   Stream<DynamicTest> unconnectedObservationsAndFaultDetailsRemainUnverified() {
     return Stream.of("requests", "unknown-history", "unknown-fault-detail")
-        .map(
-            field ->
-                dynamicTest(
-                    field,
-                    () -> {
-                      ConformanceCase original = find("core-retention-failure-after-commit");
-                      ObjectNode changed = original.materialized().deepCopy();
-                      if (field.equals("requests"))
-                        ((ObjectNode) changed.at("/steps/1/observe")).putArray(field);
-                      else if (field.equals("unknown-history"))
-                        ((ObjectNode) changed.at("/steps/1/observe/history")).putArray(field);
-                      else ((ObjectNode) changed.at("/faults/0/details")).put(field, true);
-                      CaseResult result =
-                          CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
-                      assertEquals(ConformanceStatus.UNVERIFIED, result.status());
-                      org.junit.jupiter.api.Assertions.assertFalse(
-                          result.actual().has("initialization"));
-                    }));
+        .map(field ->
+            dynamicTest(
+                field,
+                () -> {
+                  ConformanceCase original = find("core-retention-failure-after-commit");
+                  ObjectNode changed = original.materialized().deepCopy();
+                  if (field.equals("requests"))
+                    ((ObjectNode) changed.at("/steps/1/observe")).putArray(field);
+                  else if (field.equals("unknown-history"))
+                    ((ObjectNode) changed.at("/steps/1/observe/history")).putArray(field);
+                  else ((ObjectNode) changed.at("/faults/0/details")).put(field, true);
+                  CaseResult result =
+                      CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
+                  assertEquals(ConformanceStatus.UNVERIFIED, result.status());
+                  org.junit.jupiter.api.Assertions.assertFalse(
+                      result.actual().has("initialization"));
+                }));
   }
 
   @Test
@@ -355,36 +352,35 @@ class MemoryCaseRunnerTest {
             "fault-phase",
             "seed-configuration",
             "store-lock-wait-milliseconds")
-        .map(
-            element ->
-                dynamicTest(
-                    element,
-                    () -> {
-                      ConformanceCase original = find("core-retention-failure-after-commit");
-                      ObjectNode changed = original.materialized().deepCopy();
-                      switch (element) {
-                        case "operation":
-                          ((ArrayNode) changed.path("steps"))
-                              .addObject()
-                              .put("op", "holdWriteLock")
-                              .putObject("arguments");
-                          break;
-                        case "fault-kind":
-                          ((ObjectNode) changed.at("/faults/0")).put("kind", "transaction-aborted");
-                          break;
-                        case "fault-phase":
-                          ((ObjectNode) changed.at("/faults/0")).put("phase", "journal-write-tail");
-                          break;
-                        case "seed-configuration":
-                          changed.putObject("seed").putObject("configuration");
-                          break;
-                        default:
-                          ((ObjectNode) changed.at("/store")).put("lock_wait_milliseconds", 100);
-                      }
-                      CaseResult result =
-                          CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
-                      assertEquals(ConformanceStatus.UNVERIFIED, result.status(), result.reason());
-                    }));
+        .map(element ->
+            dynamicTest(
+                element,
+                () -> {
+                  ConformanceCase original = find("core-retention-failure-after-commit");
+                  ObjectNode changed = original.materialized().deepCopy();
+                  switch (element) {
+                    case "operation":
+                      ((ArrayNode) changed.path("steps"))
+                          .addObject()
+                          .put("op", "holdWriteLock")
+                          .putObject("arguments");
+                      break;
+                    case "fault-kind":
+                      ((ObjectNode) changed.at("/faults/0")).put("kind", "transaction-aborted");
+                      break;
+                    case "fault-phase":
+                      ((ObjectNode) changed.at("/faults/0")).put("phase", "journal-write-tail");
+                      break;
+                    case "seed-configuration":
+                      changed.putObject("seed").putObject("configuration");
+                      break;
+                    default:
+                      ((ObjectNode) changed.at("/store")).put("lock_wait_milliseconds", 100);
+                  }
+                  CaseResult result =
+                      CaseClassifier.classify(copy(original, changed), Backend.MEMORY);
+                  assertEquals(ConformanceStatus.UNVERIFIED, result.status(), result.reason());
+                }));
   }
 
   @Test

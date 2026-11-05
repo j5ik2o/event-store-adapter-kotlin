@@ -170,12 +170,11 @@ final class MemoryCaseRunner {
     }
     expected
         .fields()
-        .forEachRemaining(
-            entry -> {
-              if (!equal(entry.getValue(), actual.path(entry.getKey()))) {
-                problems.add(where + ": " + entry.getKey() + " が違う");
-              }
-            });
+        .forEachRemaining(entry -> {
+          if (!equal(entry.getValue(), actual.path(entry.getKey()))) {
+            problems.add(where + ": " + entry.getKey() + " が違う");
+          }
+        });
   }
 
   private static boolean equal(JsonNode expected, JsonNode actual) {
@@ -234,13 +233,12 @@ final class MemoryCaseRunner {
 
   private static Set<JsonNode> set(JsonNode values) {
     Set<JsonNode> result = new HashSet<>();
-    values.forEach(
-        value ->
-            result.add(
-                value.isNumber()
-                    ? com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.numberNode(
-                        value.bigIntegerValue())
-                    : value));
+    values.forEach(value ->
+        result.add(
+            value.isNumber()
+                ? com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.numberNode(
+                    value.bigIntegerValue())
+                : value));
     return result;
   }
 

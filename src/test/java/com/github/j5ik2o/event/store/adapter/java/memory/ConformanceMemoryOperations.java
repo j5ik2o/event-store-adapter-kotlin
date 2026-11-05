@@ -437,11 +437,10 @@ public final class ConformanceMemoryOperations {
     int operation;
 
     Faults(JsonNode faults) {
-      faults.forEach(
-          fault -> {
-            registered.add(fault);
-            fired.add(0);
-          });
+      faults.forEach(fault -> {
+        registered.add(fault);
+        fired.add(0);
+      });
     }
 
     boolean supported() {

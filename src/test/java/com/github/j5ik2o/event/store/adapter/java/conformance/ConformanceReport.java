@@ -98,13 +98,12 @@ final class ConformanceReport {
           }
         }
         ArrayNode entries = backendReasons.putArray(status.label());
-        groups.forEach(
-            (reason, casesWithReason) -> {
-              ObjectNode entry =
-                  entries.addObject().put("reason", reason).put("count", casesWithReason.size());
-              ArrayNode caseIds = entry.putArray("case_ids");
-              casesWithReason.forEach(result -> caseIds.add(result.caseId()));
-            });
+        groups.forEach((reason, casesWithReason) -> {
+          ObjectNode entry =
+              entries.addObject().put("reason", reason).put("count", casesWithReason.size());
+          ArrayNode caseIds = entry.putArray("case_ids");
+          casesWithReason.forEach(result -> caseIds.add(result.caseId()));
+        });
       }
     }
 
