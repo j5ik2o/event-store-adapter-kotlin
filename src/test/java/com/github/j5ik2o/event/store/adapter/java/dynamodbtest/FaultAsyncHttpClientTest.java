@@ -39,14 +39,13 @@ class FaultAsyncHttpClientTest {
   void callbackBeforeExecuteReturnsCannotPublishAnIncompleteTransmission() {
     Probe probe = new Probe();
     StubClient delegate =
-        new StubClient(
-            request -> {
-              probe.success(request);
-              assertFalse(probe.recorder.requestsFinished(probe.operation).isDone());
-              assertEquals(1, probe.faults.pending(probe.operation));
-              assertEquals(0, probe.record().transmissions);
-              return CompletableFuture.completedFuture(null);
-            });
+        new StubClient(request -> {
+          probe.success(request);
+          assertFalse(probe.recorder.requestsFinished(probe.operation).isDone());
+          assertEquals(1, probe.faults.pending(probe.operation));
+          assertEquals(0, probe.record().transmissions);
+          return CompletableFuture.completedFuture(null);
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     client.execute(probe.request()).join();
     probe.assertTerminal(1, null);
@@ -59,10 +58,9 @@ class FaultAsyncHttpClientTest {
     Probe probe = new Probe();
     IllegalStateException rejected = new IllegalStateException("not accepted");
     StubClient delegate =
-        new StubClient(
-            request -> {
-              throw rejected;
-            });
+        new StubClient(request -> {
+          throw rejected;
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     CompletableFuture<Void> result = client.execute(probe.request());
     assertSame(rejected, assertThrows(CompletionException.class, result::join).getCause());
@@ -76,12 +74,11 @@ class FaultAsyncHttpClientTest {
     Probe probe = new Probe();
     IOException failure = new IOException("accepted before failure");
     StubClient delegate =
-        new StubClient(
-            request -> {
-              request.responseHandler().onError(failure);
-              assertFalse(probe.recorder.requestsFinished(probe.operation).isDone());
-              return CompletableFuture.failedFuture(failure);
-            });
+        new StubClient(request -> {
+          request.responseHandler().onError(failure);
+          assertFalse(probe.recorder.requestsFinished(probe.operation).isDone());
+          return CompletableFuture.failedFuture(failure);
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     CompletableFuture<Void> result = client.execute(probe.request());
     assertSame(failure, assertThrows(CompletionException.class, result::join).getCause());
@@ -96,11 +93,10 @@ class FaultAsyncHttpClientTest {
     CompletableFuture<Void> accepted = new CompletableFuture<>();
     AtomicReference<AsyncExecuteRequest> sent = new AtomicReference<>();
     StubClient delegate =
-        new StubClient(
-            request -> {
-              sent.set(request);
-              return accepted;
-            });
+        new StubClient(request -> {
+          sent.set(request);
+          return accepted;
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     CompletableFuture<Void> result = client.execute(probe.request());
     assertEquals(1, probe.record().transmissions);
@@ -120,11 +116,10 @@ class FaultAsyncHttpClientTest {
     CompletableFuture<Void> accepted = new CompletableFuture<>();
     AtomicReference<AsyncExecuteRequest> sent = new AtomicReference<>();
     StubClient delegate =
-        new StubClient(
-            request -> {
-              sent.set(request);
-              return accepted;
-            });
+        new StubClient(request -> {
+          sent.set(request);
+          return accepted;
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     CompletableFuture<Void> result = client.execute(probe.request());
     assertFalse(result.isDone());
@@ -142,14 +137,12 @@ class FaultAsyncHttpClientTest {
     Probe probe = new Probe();
     CompletableFuture<Void> accepted = new CompletableFuture<>();
     StubClient delegate =
-        new StubClient(
-            request -> {
-              accepted.whenComplete(
-                  (ignored, failure) -> {
-                    if (failure != null) request.responseHandler().onError(failure);
-                  });
-              return accepted;
-            });
+        new StubClient(request -> {
+          accepted.whenComplete((ignored, failure) -> {
+            if (failure != null) request.responseHandler().onError(failure);
+          });
+          return accepted;
+        });
     FaultAsyncHttpClient client = new FaultAsyncHttpClient(delegate, probe.recorder);
     CompletableFuture<Void> result = client.execute(probe.request());
     assertFalse(probe.recorder.requestsFinished(probe.operation).isDone());
