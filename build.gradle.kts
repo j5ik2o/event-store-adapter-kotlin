@@ -31,7 +31,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("software.amazon.awssdk:apache5-client:2.57.10")
-    testImplementation("software.amazon.awssdk:netty-nio-client:2.57.9")
+    testImplementation("software.amazon.awssdk:netty-nio-client:2.57.10")
     testImplementation("com.networknt:json-schema-validator:2.0.8")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.+")
 
