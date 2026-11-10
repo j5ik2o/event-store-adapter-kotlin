@@ -20,10 +20,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - name: Verify conformance data v1.3.0
+      - name: Verify conformance data v1.4.0
         run: |
           python3 tools/conformance/manifest.py verify
-          echo "0157c012042afa9a19f0bff509a433a4bd5ddc5b674de864a41bec453c460691  conformance/manifest.json" | sha256sum -c -
+          echo "abc120f80fc300195f61bd831b0139957e73bb45f8de57c0cb0590c44ee567da  conformance/manifest.json" | sha256sum -c -
       - name: Verify user documentation
         run: |
           echo "95c189b5e7c0f65967d366d6b0060e7f66d9cc5df7158a382f69750e40d1b37d  user-docs/template.json" | sha256sum -c -
@@ -87,6 +87,8 @@ jobs:
         # Pinned by digest, as in BigtableEmulator. The Bigtable tests and the required
         # Bigtable conformance cases fail the build when they cannot run.
         run: docker pull gcr.io/google.com/cloudsdktool/google-cloud-cli@sha256:8d8573471c489a409f03891d2c24d177fa531276184f7002b9a2d853d1b3ed54
+      - name: Verify core-only and core plus DynamoDB classpaths
+        run: ./gradlew :core:test :dynamodb:test verifyModulePoms -PtestJavaVersion=${{ matrix.java }} --info
       - run: ./gradlew test -PtestJavaVersion=${{ matrix.java }} --info
       - name: Write per-rule conformance table to job summary
         if: ${{ !cancelled() }}

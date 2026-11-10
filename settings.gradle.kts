@@ -10,3 +10,5 @@ plugins {
 }
 
 rootProject.name = "event-store-adapter-kotlin"
+
+include("core", "dynamodb", "spanner", "bigtable", "sqlite")
