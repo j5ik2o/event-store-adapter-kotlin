@@ -80,7 +80,7 @@ python3 -m unittest discover -s .github/tests -v
 - プルリクエストは `main` へ出します。CI の集約ジョブは `CI Success` で、lint、test、release-checks のジョブを待ちます。
 - `version` ファイルが版を持ちます（リリースの間は開発版）。手で版を上げないでください。
 - 版上げは、手動で実行する `Bump-Version` ワークフロー（`workflow_dispatch`）で行います。入力は `level`（`auto`、`patch`、`minor`、`major`）、`force_bump`、`version` です。`level=auto` の場合だけ Conventional Commits から段階を算出します。`level` を明示した場合はその値を使います。`version` を明示した場合は段階を計算せず、指定した版を使います。
-- タグ `vX.Y.Z` を push すると `Release` ワークフローが Sonatype へ公開します。`main` の CI が成功した後、プルリクエストの実行ではなく、公開対象と成功した CI のコミットが一致し、公開直前もそのコミットが `main` の先頭である場合だけ、`Snapshot` ワークフローがスナップショットを公開します。
+- タグ `vX.Y.Z` を push すると `Release` ワークフローが Sonatype へ公開します。Snapshot（試験版）は公開しません。正式版を使ってください。
 - 依存の更新は Renovate が `chore(deps):` の接頭辞付きで出します。
 
 保存先ごとの実装は `core`・`dynamodb`・`spanner`・`bigtable`・`sqlite` に分かれます。root は全モジュールの依存をまとめ、既存の統合テストを実行します。core の保存先依存は compileOnly です。`./gradlew :core:test :dynamodb:test verifyModulePoms` で限定クラスパスと生成 POM を検証します。
