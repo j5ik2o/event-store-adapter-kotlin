@@ -80,7 +80,7 @@ This repository has no design documents of its own. The Kotlin design decisions 
 - Open pull requests against `main`. CI has an aggregate job, `CI Success`, which waits for the lint, test and release-checks jobs.
 - The `version` file holds the version (a development version between releases). Do not bump it by hand.
 - Versions are bumped by the manual `Bump-Version` workflow (`workflow_dispatch`). Its inputs are `level` (`auto`, `patch`, `minor` or `major`), `force_bump` and `version`. Only `level=auto` derives the level from Conventional Commits. An explicit `level` is used directly. An explicit `version` bypasses level calculation and is used as the next version.
-- Pushing a tag `vX.Y.Z` runs the `Release` workflow, which publishes to Sonatype. After successful CI on `main`, `Snapshot` publishes only when the run is not from a pull request, the snapshot commit matches the successful CI commit, and that commit is still the tip of `main` immediately before publishing.
+- Pushing a tag `vX.Y.Z` runs the `Release` workflow, which publishes to Sonatype. Snapshot builds are not published; use a released version.
 - Dependency updates come from Renovate with the `chore(deps):` commit prefix.
 
 The `core`, `dynamodb`, `spanner`, `bigtable` and `sqlite` projects provide the published modules. The root bundles their dependencies and runs the integration tests. Core uses compileOnly driver dependencies. Run `./gradlew :core:test :dynamodb:test verifyModulePoms` to verify isolated classpaths and generated POMs.
