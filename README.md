@@ -13,7 +13,7 @@
 
 A thin Kotlin wrapper over the new public [Java event store](https://github.com/j5ik2o/event-store-adapter-java), with memory, DynamoDB, SQLite, Spanner and Bigtable storage and suspending operations. [日本語](README.ja.md)
 
-This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java `5.1.0`, which provides the SQLite, Spanner and Bigtable storages. See the [migration guide](docs/MIGRATION_GUIDE.md).
+This source makes a breaking API and storage-layout cutover. This library follows [common contract v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md); its major version 5 matches the contract revision (core contract: [core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)). It depends on Java `5.2.0`, which provides the SQLite, Spanner and Bigtable storages. See the [migration guide](docs/MIGRATION_GUIDE.md).
 
 ## Installation
 
@@ -30,6 +30,16 @@ dependencies {
 ```
 
 The SQLite, Spanner and Bigtable storages are available in Kotlin `5.1.0`.
+
+### Storage modules
+
+These modules are part of this source revision and require its next publication.
+
+To use only DynamoDB, depend on `io.github.j5ik2o:event-store-adapter-kotlin-dynamodb` instead of the bundle. It includes `event-store-adapter-kotlin-core` and the Java 5.2.0 core and DynamoDB artifacts. Spanner, Bigtable and SQLite SDKs are excluded.
+
+Use `DynamoDbEventStores.of` or suspending `DynamoDbEventStores.ofAsync`. The other modules are `event-store-adapter-kotlin-spanner`, `event-store-adapter-kotlin-bigtable` and `event-store-adapter-kotlin-sqlite`, with `SpannerEventStores`, `BigtableEventStores` and `SqliteEventStores` factories. Each provides `of` and `ofAsync`. Memory and `fromJava` remain in core.
+
+The original `event-store-adapter-kotlin` artifact depends on all five modules. Existing `EventStore.ofDynamoDB`, `ofSpanner`, `ofBigtable`, `ofSqlite` and their async counterparts retain their signatures and are deprecated. Select the matching driver module when using these factories.
 
 ## Quick start
 

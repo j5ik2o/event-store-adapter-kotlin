@@ -29,6 +29,7 @@ interface EventStore<P, A> {
         ): EventStore<P, A> = fromJava(MemoryEventStore.create(storage, config))
 
         /** Validates three provisioned tables; the caller owns the client. / 外部の3表を照合し、クライアントは呼出側が所有します。 */
+        @Deprecated("Use DynamoDbEventStores.of from the dynamodb module")
         fun <P, A> ofDynamoDB(
             client: DynamoDbClient,
             tables: DynamoDbTableConfig,
@@ -36,18 +37,21 @@ interface EventStore<P, A> {
         ): EventStore<P, A> = fromJava(DynamoDbEventStore.create(client, tables, config))
 
         /** Wraps an opened SQLite storage; the caller owns and closes it. / 開いたSQLite保存先を包み、閉じる責任は呼出側にあります。 */
+        @Deprecated("Use SqliteEventStores.of from the sqlite module")
         fun <P, A> ofSqlite(
             storage: SqliteStorage,
             config: EventStoreConfig<P, A>,
         ): EventStore<P, A> = fromJava(SqliteEventStore.create(storage, config))
 
         /** Wraps an opened Spanner storage; the caller owns the client. / 開いたSpanner保存先を包み、クライアントは呼出側が所有します。 */
+        @Deprecated("Use SpannerEventStores.of from the spanner module")
         fun <P, A> ofSpanner(
             storage: SpannerStorage,
             config: EventStoreConfig<P, A>,
         ): EventStore<P, A> = fromJava(SpannerEventStore.create(storage, config))
 
         /** Wraps an opened Bigtable storage; the caller owns both clients. / 開いたBigtable保存先を包み、クライアントは呼出側が所有します。 */
+        @Deprecated("Use BigtableEventStores.of from the bigtable module")
         fun <P, A> ofBigtable(
             storage: BigtableStorage,
             config: EventStoreConfig<P, A>,

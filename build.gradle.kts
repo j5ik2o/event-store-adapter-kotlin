@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "io.github.j5ik2o"
-version = File("./version").readText().trim()
+version = rootProject.file("version").readText().trim()
 
 extra["isReleaseVersion"] = !version.toString().endsWith("SNAPSHOT")
 
@@ -35,10 +35,12 @@ dependencies {
     testImplementation("com.networknt:json-schema-validator:2.0.8")
     testImplementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.+")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    api("io.github.j5ik2o:event-store-adapter-java:5.1.0")
-    implementation("software.amazon.awssdk:dynamodb:2.57.11")
+    api(project(":core"))
+    api(project(":dynamodb"))
+    api(project(":spanner"))
+    api(project(":bigtable"))
+    api(project(":sqlite"))
 }
 
 val testJavaVersion = providers.gradleProperty("testJavaVersion").map(String::toInt).orElse(11)
@@ -176,3 +178,65 @@ signing {
     useInMemoryPgpKeys(signingKey, signingPassword)
     sign(publishing.publications["mavenJava"])
 }
+
+subprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "java-library")
+    apply(plugin = "maven-publish")
+    apply(plugin = "signing")
+    group = rootProject.group
+    version = rootProject.version
+    extensions.configure<BasePluginExtension> { archivesName.set("event-store-adapter-kotlin-${project.name}") }
+    repositories { mavenCentral() }
+    extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+        jvmToolchain(11)
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_11) }
+    }
+    extensions.configure<JavaPluginExtension> {
+        withSourcesJar()
+        withJavadocJar()
+    }
+    tasks.withType<JavaCompile>().configureEach { options.release.set(11) }
+    extensions.configure<PublishingExtension> {
+        publications.create<MavenPublication>("mavenJava") {
+            from(components["java"])
+            artifactId = "event-store-adapter-kotlin-${project.name}"
+            pom {
+                name.set(artifactId)
+                description.set("Event Store Adapter for Kotlin ${project.name}")
+                url.set("https://github.com/j5ik2o/event-store-adapter-kotlin")
+                licenses {
+                    license { name.set("MIT"); url.set("https://opensource.org/license/mit/") }
+                    license { name.set("Apache-2.0"); url.set("https://www.apache.org/licenses/LICENSE-2.0") }
+                }
+                developers { developer { id.set("j5ik2o"); name.set("Junichi Kato") } }
+                scm { url.set("https://github.com/j5ik2o/event-store-adapter-kotlin") }
+            }
+        }
+    }
+    extensions.configure<SigningExtension> {
+        useInMemoryPgpKeys(System.getenv("SIGNING_KEY"), System.getenv("SIGNING_PASSWORD"))
+        sign(extensions.getByType<PublishingExtension>().publications["mavenJava"])
+    }
+    tasks.withType<Sign>().configureEach { onlyIf { rootProject.extra["isReleaseVersion"] as Boolean } }
+}
+
+tasks.register("verifyModulePoms") {
+    dependsOn("generatePomFileForMavenJavaPublication")
+    dependsOn(subprojects.map { it.tasks.named("generatePomFileForMavenJavaPublication") })
+    doLast {
+        val bundlePom = layout.buildDirectory.file("publications/mavenJava/pom-default.xml").get().asFile.readText()
+        for (module in listOf("core", "dynamodb", "spanner", "bigtable", "sqlite")) {
+            check(bundlePom.contains("event-store-adapter-kotlin-$module"))
+        }
+        check(!bundlePom.contains("software.amazon.awssdk"))
+        val corePom = project(":core").layout.buildDirectory.file("publications/mavenJava/pom-default.xml").get().asFile.readText()
+        for (driver in listOf("dynamodb", "spanner", "bigtable", "sqlite")) {
+            check(!corePom.contains("event-store-adapter-java-$driver")) { "Driver leaked into core POM: $driver" }
+            val pom = project(":$driver").layout.buildDirectory.file("publications/mavenJava/pom-default.xml").get().asFile.readText()
+            check(pom.contains("event-store-adapter-java-$driver"))
+            check(pom.contains("<version>5.2.0</version>"))
+        }
+    }
+}
+tasks.check { dependsOn("verifyModulePoms") }

@@ -15,7 +15,7 @@
 
 [Javaイベントストア](https://github.com/j5ik2o/event-store-adapter-java)の新公開型を使う薄いKotlinラッパーです。メモリ、DynamoDB、SQLite、Spanner、Bigtable とコルーチンの中断関数を提供します。[English](README.md)
 
-このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。SQLite・Spanner・Bigtable を提供する Java `5.1.0` に依存します。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
+このソースは公開操作と保存配置を破壊的に切り替えています。[共通契約 v5](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/README.md)に従います。メジャーの番号 5 は、共通契約の版と同じです（中核の契約は[core-contract.md](https://github.com/j5ik2o/event-store-adapter/blob/main/docs/spec/core-contract.md)）。SQLite・Spanner・Bigtable を提供する Java `5.2.0` に依存します。[移行案内](docs/MIGRATION_GUIDE.ja.md)を参照してください。
 
 ## インストール
 
@@ -32,6 +32,16 @@ dependencies {
 ```
 
 SQLite・Spanner・Bigtable の保存先は Kotlin `5.1.0` で使えます。
+
+### 保存先モジュール
+
+以下のモジュールはこのソースで導入します。利用には次回の公開が必要です。
+
+DynamoDB だけを使う場合は `io.github.j5ik2o:event-store-adapter-kotlin-dynamodb` に依存します。core と Java 5.2.0 の core・DynamoDB が入り、Spanner・Bigtable・SQLite の SDK は入りません。
+
+新しい入口は `DynamoDbEventStores.of` と suspend 関数の `ofAsync` です。他の保存先は `event-store-adapter-kotlin-spanner`、`event-store-adapter-kotlin-bigtable`、`event-store-adapter-kotlin-sqlite` と、それぞれの `SpannerEventStores`、`BigtableEventStores`、`SqliteEventStores` の `of`・`ofAsync` を使います。Memory と `fromJava` は core に残ります。
+
+既存の `event-store-adapter-kotlin` は5モジュールに依存するまとめ用です。`EventStore.ofDynamoDB`・`ofSpanner`・`ofBigtable`・`ofSqlite` と非同期版は、シグネチャを保ったまま Deprecated です。利用時には対応する保存先モジュールが必要です。
 
 ## はじめに
 

@@ -29,6 +29,7 @@ interface EventStoreAsync<P, A> {
         ): EventStoreAsync<P, A> = fromJava(MemoryEventStore.createAsync(storage, config))
 
         /** Awaits configuration validation; the caller owns the client. / 設定照合を待ち、クライアントは呼出側が所有します。 */
+        @Deprecated("Use DynamoDbEventStores.ofAsync from the dynamodb module")
         suspend fun <P, A> ofDynamoDB(
             client: DynamoDbAsyncClient,
             tables: DynamoDbTableConfig,
@@ -36,18 +37,21 @@ interface EventStoreAsync<P, A> {
         ): EventStoreAsync<P, A> = fromJava(DynamoDbEventStore.createAsync(client, tables, config).await())
 
         /** Wraps an opened SQLite storage; the caller owns and closes it. / 開いたSQLite保存先を包み、閉じる責任は呼出側にあります。 */
+        @Deprecated("Use SqliteEventStores.ofAsync from the sqlite module")
         fun <P, A> ofSqlite(
             storage: SqliteStorage,
             config: EventStoreConfig<P, A>,
         ): EventStoreAsync<P, A> = fromJava(SqliteEventStore.createAsync(storage, config))
 
         /** Wraps an opened Spanner storage; the caller owns the client. / 開いたSpanner保存先を包み、クライアントは呼出側が所有します。 */
+        @Deprecated("Use SpannerEventStores.ofAsync from the spanner module")
         fun <P, A> ofSpanner(
             storage: SpannerStorage,
             config: EventStoreConfig<P, A>,
         ): EventStoreAsync<P, A> = fromJava(SpannerEventStore.createAsync(storage, config))
 
         /** Wraps an opened Bigtable storage; the caller owns both clients. / 開いたBigtable保存先を包み、クライアントは呼出側が所有します。 */
+        @Deprecated("Use BigtableEventStores.ofAsync from the bigtable module")
         fun <P, A> ofBigtable(
             storage: BigtableStorage,
             config: EventStoreConfig<P, A>,
