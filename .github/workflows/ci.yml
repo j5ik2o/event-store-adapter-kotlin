@@ -20,10 +20,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - name: Verify conformance data v1.4.0
+      - name: Verify conformance data v1.5.0
         run: |
           python3 tools/conformance/manifest.py verify
-          echo "abc120f80fc300195f61bd831b0139957e73bb45f8de57c0cb0590c44ee567da  conformance/manifest.json" | sha256sum -c -
+          echo "a5ec3e5cc659329891eb4f995fbdbd68cde2fe90b9166d4f103bdf7341b263ad  conformance/manifest.json" | sha256sum -c -
       - name: Verify user documentation
         run: |
           echo "95c189b5e7c0f65967d366d6b0060e7f66d9cc5df7158a382f69750e40d1b37d  user-docs/template.json" | sha256sum -c -
