@@ -1,0 +1,54 @@
+{
+  "engines": ["format", "lint", "code-quality", "ai-slop", "security"],
+  "missingToolsAllowed": {
+    "ruff": "Python 用の lint/format ツール。このリポジトリに Python の依存管理（requirements / pyproject）が無く、Node の devDependencies にも含まれないため未導入（実測で ruff --version が ENOENT）。"
+  },
+  "accepted": [
+    {
+      "reason": "既存の複雑度超過。aislop 組み込みとは無関係に以前からある指摘で、今回のタスクではコード修正しない（指示範囲外）。",
+      "findings": [
+        {
+          "engine": "code-quality",
+          "rule": "complexity/file-too-large",
+          "file": "tools/user-docs/check.py",
+          "message": "File too large (limit: 400, flagged above 441 lines)"
+        },
+        {
+          "engine": "code-quality",
+          "rule": "complexity/function-too-long",
+          "file": "tools/user-docs/check.py",
+          "message": "Function too long (limit: 80, flagged above 88 lines)"
+        }
+      ]
+    },
+    {
+      "reason": "対象4ファイルの2行目にある PEP 263 のエンコーディング宣言（# -*- coding: utf-8 -*-）を、aislop 0.20.1 の ai-slop/narrative-comment（decorative separator 判定）が装飾的区切りコメントとして誤検出したもの。既存の記述で、今回のタスクではコード修正しない。",
+      "findings": [
+        {
+          "engine": "ai-slop",
+          "rule": "ai-slop/narrative-comment",
+          "file": ".github/create-release-note-body.py",
+          "message": "Narrative comment block (decorative separator)"
+        },
+        {
+          "engine": "ai-slop",
+          "rule": "ai-slop/narrative-comment",
+          "file": ".github/create-release-note-header.py",
+          "message": "Narrative comment block (decorative separator)"
+        },
+        {
+          "engine": "ai-slop",
+          "rule": "ai-slop/narrative-comment",
+          "file": ".github/next-semver.py",
+          "message": "Narrative comment block (decorative separator)"
+        },
+        {
+          "engine": "ai-slop",
+          "rule": "ai-slop/narrative-comment",
+          "file": ".github/validate-version.py",
+          "message": "Narrative comment block (decorative separator)"
+        }
+      ]
+    }
+  ]
+}
