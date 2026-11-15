@@ -121,11 +121,24 @@ jobs:
             build/reports/conformance/report.json
             build/reports/conformance/summary.md
           if-no-files-found: error
+  aislop:
+    name: Run aislop checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run check:aislop
+      - run: npm run test:aislop
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    needs: [lint, test, release-checks]
+    needs: [lint, test, release-checks, aislop]
     if: always()
     steps:
       - name: Check CI results
@@ -133,8 +146,9 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
           RELEASE_CHECKS_RESULT: ${{ needs.release-checks.result }}
+          AISLOP_RESULT: ${{ needs.aislop.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$RELEASE_CHECKS_RESULT" != "success" ]]; then
-            echo "CI did not succeed: lint=$LINT_RESULT, test=$TEST_RESULT, release-checks=$RELEASE_CHECKS_RESULT"
+          if [[ "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$RELEASE_CHECKS_RESULT" != "success" || "$AISLOP_RESULT" != "success" ]]; then
+            echo "CI did not succeed: lint=$LINT_RESULT, test=$TEST_RESULT, release-checks=$RELEASE_CHECKS_RESULT, aislop=$AISLOP_RESULT"
             exit 1
           fi
