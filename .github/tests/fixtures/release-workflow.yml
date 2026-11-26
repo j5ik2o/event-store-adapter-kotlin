@@ -70,6 +70,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          set -o pipefail
           ./gradlew --no-daemon -q properties --property version \
             | python3 "${GITHUB_WORKSPACE}"/.github/central-portal.py check-version --tag "$RELEASE_TAG"
       # 秘密の値は、それを使う手順の env だけに置く（SIGNING_* は bundle、SONATYPE_* は precheck・upload・deployment）。
@@ -140,6 +141,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           SERVER_URL: ${{ github.server_url }}
         run: |
+          set -o pipefail
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "the GitHub release ${RELEASE_TAG} already exists"
           else

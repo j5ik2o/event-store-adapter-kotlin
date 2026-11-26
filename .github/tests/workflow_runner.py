@@ -5,7 +5,8 @@
   読める形は steps.<id>.outputs.<名前> == '<値>'、!= ''、always() && … だけ。知らない形は UnknownExpression。
 - env: と with: の式：github.token、github.ref_name、github.run_attempt、vars.<名前>、secrets.<名前>、
   steps.<id>.outputs.<名前>、runner.temp だけ。知らない式は UnknownExpression。
-- shell は bash --noprofile --norc -eo pipefail {0}。GITHUB_OUTPUT は手順ごとの新しいファイル。
+- shell は、shell: を書かない手順の GitHub の既定と同じ bash -e {0}（pipefail は無い。パイプを持つ手順は
+  set -o pipefail を自分で書く。test_release_workflow_shape.py が確かめる）。GITHUB_OUTPUT は手順ごとの新しいファイル。
 - uses: の手順：checkout は前もって作った clone で代え、setup-* は飛ばし、upload-artifact は名前と path を記録する。
   知らない uses: は UnknownExpression。
 """
@@ -148,7 +149,7 @@ class Runner:
             script = self.temp / f'step-{number}.sh'
             script.write_text(item['run'] + '\n')
             env.update(GITHUB_OUTPUT=str(output), **self.step_env.get(step_id, {}))
-            process = subprocess.run(['bash', '--noprofile', '--norc', '-eo', 'pipefail', str(script)],
+            process = subprocess.run(['bash', '-e', str(script)],
                                      cwd=self.workspace, env=env, capture_output=True, text=True)
             self.step_outputs[step_id] = outputs(output)
             outcome = 'success' if process.returncode == 0 else 'failure'

@@ -212,6 +212,18 @@ class BumpWorkflowShapeTest(unittest.TestCase):
         self.assertIn('BRANCH="release/${NEXT_TAG}"', BUMP)
         self.assertNotIn('origin main', BUMP + RELEASE)
 
+    def test_steps_with_a_pipe_set_pipefail(self):
+        # shell: を書かない手順は bash -e {0} で動き、pipefail が無い。パイプの前の失敗を落とさないように、
+        # パイプを持つ手順は最初の行で set -o pipefail を書く（#924 の Devin の指摘）
+        pipe = re.compile(r'(^|\s)\|(\s|$)')
+        for name, workflow in (('bump-version.yml', BUMP), ('release.yml', RELEASE)):
+            for block in run_blocks(workflow):
+                lines = [line.strip() for line in block.splitlines() if line.strip()]
+                if any(pipe.search(line) for line in lines):
+                    with self.subTest(workflow=name, block=lines[0]):
+                        self.assertEqual(lines[0], 'set -o pipefail')
+        self.assertNotIn('shell:', BUMP + RELEASE)
+
     def test_no_snapshot_commit_and_no_github_release_in_the_bump(self):
         self.assertEqual(BUMP.count('git commit'), 1)
         for text in ('snapshot', 'actions/create-release', 'gh release'):
@@ -274,7 +286,7 @@ class BumpWorkflowShapeTest(unittest.TestCase):
             output = Path(directory) / 'outputs'
             output.write_text('')
             result = subprocess.run(
-                ['bash', '-e', '-o', 'pipefail', '-c', run_body(BUMP, 'version_pr')], cwd=directory,
+                ['bash', '-e', '-c', run_body(BUMP, 'version_pr')], cwd=directory,
                 env={**os.environ, 'PATH': f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
                      'FAKE_GH_ARGS': str(args), 'GITHUB_OUTPUT': str(output), 'GITHUB_REPOSITORY': 'o/r',
                      'NEXT_TAG': 'v5.3.0', 'BRANCH': 'release/v5.3.0', 'BODY': 'body.md',

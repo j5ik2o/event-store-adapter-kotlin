@@ -84,7 +84,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
         output = self.directory / ('output-' + step_id)
         output.write_text('')
         result = subprocess.run(
-            ['bash', '-e', '-o', 'pipefail', '-c', run_body(workflow, step_id)], cwd=cwd,
+            ['bash', '-e', '-c', run_body(workflow, step_id)], cwd=cwd,
             env={**self.env, 'GITHUB_WORKSPACE': str(cwd), 'GITHUB_OUTPUT': str(output),
                  'GITHUB_REPOSITORY': REPOSITORY, 'SERVER_URL': 'https://github.com',
                  'PUSH_TOKEN': 'dummy', **env},
@@ -161,6 +161,36 @@ class ReleaseRehearsalTest(unittest.TestCase):
                 self.assertIn('(https://github.com/o/r/compare/v5.2.0...release/v5.3.0)', body)
                 self.assertIn('add a feature', body)
                 self.assertEqual('**Rehearsal. Do not merge.**' in body, rehearsal == 'true')
+
+    def commit(self, subject, body=''):
+        (self.work / 'feature.txt').write_text(subject + body + '\n')
+        message = subject + ('\n\n' + body if body else '')
+        self.git(self.work, 'commit', '-am', message)
+
+    def test_a_breaking_change_footer_makes_a_major_version(self):
+        # 件名が Conventional Commits の型でなくても、本文の BREAKING CHANGE: / BREAKING-CHANGE: は major（#924 の Devin の指摘）
+        for footer in ('BREAKING CHANGE', 'BREAKING-CHANGE'):
+            with self.subTest(footer=footer):
+                self.commit('Remove the old API', f'{footer}: the old API is gone')
+                result, out = self.step('changes', self.work, BASE='v5.2.0', FORCE_BUMP='false',
+                                        REQUESTED_LEVEL='auto', REQUESTED_VERSION='')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(out['count'], '2')
+                result, out = self.step('semver_level', self.work, REQUESTED_LEVEL='auto', PREV_TAG='v5.2.0')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(out, {'semver_level': 'major'})
+                self.git(self.work, 'reset', '-q', '--hard', 'HEAD^')
+
+    def test_an_explicit_level_bumps_without_matching_commits(self):
+        self.commit('Update the readme')
+        self.git(self.work, 'tag', '-a', 'v5.2.1', '-m', 'v5.2.1')
+        for level, count in (('auto', '0'), ('patch', '1'), ('minor', '1'), ('major', '1')):
+            with self.subTest(level=level):
+                result, out = self.step('changes', self.work, BASE='v5.2.1', FORCE_BUMP='false',
+                                        REQUESTED_LEVEL=level, REQUESTED_VERSION='')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(out['count'], count)
+                self.assertEqual('nothing to release' in result.stdout, count == '0')
 
     def test_previous_tag_is_the_latest_stable_tag(self):
         self.git(self.work, 'tag', 'v9.0.0-rc.1')

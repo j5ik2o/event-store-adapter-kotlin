@@ -118,6 +118,8 @@ Rules that keep the checks working:
 
 To stop releases, merge a pull request that sets `PUSH_RELEASE_TAG` to `'false'` in `bump-version.yml`. While it is `'false'`, the tag job writes the tag it would push to the job summary and stops. A version pull request merged during that time leaves its version on `main` without a tag: set `version` back to the previous SNAPSHOT version with a pull request, then run Bump-Version again with `version` set to the version you want.
 
+A re-run uses the workflow files of the commit it ran on, not those of `main`. While releases are stopped, do not re-run a tag job (`Tag the merged version`) that ran before the stop: its `bump-version.yml` still has `PUSH_RELEASE_TAG: 'true'`, so it pushes the tag. The same holds for a Release run of a tag pushed before the stop. Re-run them only after releases are started again.
+
 ### Until 5.2.0 is on Maven Central
 
 The tag `v5.2.0` and its GitHub release exist, but 5.2.0 is not on Maven Central: the publish of 2026-11-11 was refused ([#908](https://github.com/j5ik2o/event-store-adapter-kotlin/issues/908)). 5.2.0 is published by re-running the failed jobs of that Release run ([42966589471](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/runs/42966589471)). The re-run uses the Release workflow of the tagged commit `7a49995`, which has no release gate. The precheck does not count that run (`FIRST_COUNTED_RUN_ID` in `.github/central-rules.py`).

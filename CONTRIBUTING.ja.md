@@ -118,6 +118,8 @@ python3 -m unittest discover -s .github/tests -v
 
 リリースを止めるときは、`bump-version.yml` の `PUSH_RELEASE_TAG` を `'false'` にする pull request をマージします。`'false'` の間、タグのジョブは、打つはずのタグを job summary に書いて終わります。その間にマージした版上げの pull request の版は、タグが付かないまま `main` に残ります。pull request で `version` を前の SNAPSHOT 版に戻し、出したい版を `version` に指定して Bump-Version をやり直してください。
 
+再実行は、`main` ではなく、その run のコミットのワークフローのファイルで動きます。リリースを止めている間は、止める前に動いたタグのジョブ（`Tag the merged version`）を再実行しないでください。その `bump-version.yml` は `PUSH_RELEASE_TAG: 'true'` のままなので、タグを push します。止める前に push したタグの Release の run も同じです。再実行するのは、リリースを再開してからにします。
+
 ### 5.2.0 が Maven Central に出るまで
 
 タグ `v5.2.0` と GitHub のリリースはありますが、5.2.0 は Maven Central にありません。2026-11-11 の公開が拒否されたためです（[#908](https://github.com/j5ik2o/event-store-adapter-kotlin/issues/908)）。5.2.0 は、その Release の run（[42966589471](https://github.com/j5ik2o/event-store-adapter-kotlin/actions/runs/42966589471)）の失敗したジョブを再実行して出します。再実行は、タグのコミット `7a49995` の Release ワークフローで動き、関門を持ちません。事前の確認は、この run を数えません（`.github/central-rules.py` の `FIRST_COUNTED_RUN_ID`）。
