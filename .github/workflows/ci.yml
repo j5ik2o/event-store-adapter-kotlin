@@ -32,7 +32,10 @@ jobs:
       - name: Verify API surface 0.1.0
         run: |
           echo "37c91f8f94e10c73513a9c1deef990ea4deea96d5001ae700d6bf799658d0e32  api-surface/surface.json" | sha256sum -c -
-      - run: python3 -m unittest discover -s .github/tests -v
+      - name: Install the release tooling test dependencies
+        run: python3 -m pip install -r .github/tests/requirements.txt
+      - name: Test the release tooling
+        run: python3 -m unittest discover -s .github/tests -v
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
@@ -40,7 +43,46 @@ jobs:
       - name: Check workflows
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          actionlint
+          "$(go env GOPATH)/bin/actionlint"
+  release-bundle:
+    name: Build the release bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+      JVM_OPTS:  -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 11
+      - name: Set up Gradle runtime
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      # 使い捨ての鍵で、release.yml と同じ central-bundle.sh を流し、180 ファイルと署名を確かめる（秘密の値は使わない）
+      - name: Build and check the bundle with a throwaway key
+        run: bash .github/central-bundle-ci.sh
+  release-model:
+    name: Check the release model
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Check the Quint model of the release path
+        timeout-minutes: 5
+        env:
+          QUINT: npx --yes @informalsystems/quint@0.32.0
+        run: bash .github/quint/run-quint.sh ci
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -138,7 +180,7 @@ jobs:
     name: CI Success
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    needs: [lint, test, release-checks, aislop]
+    needs: [lint, test, release-checks, release-bundle, release-model, aislop]
     if: always()
     steps:
       - name: Check CI results
@@ -146,9 +188,11 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
           RELEASE_CHECKS_RESULT: ${{ needs.release-checks.result }}
+          RELEASE_BUNDLE_RESULT: ${{ needs.release-bundle.result }}
+          RELEASE_MODEL_RESULT: ${{ needs.release-model.result }}
           AISLOP_RESULT: ${{ needs.aislop.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$RELEASE_CHECKS_RESULT" != "success" || "$AISLOP_RESULT" != "success" ]]; then
-            echo "CI did not succeed: lint=$LINT_RESULT, test=$TEST_RESULT, release-checks=$RELEASE_CHECKS_RESULT, aislop=$AISLOP_RESULT"
+          if [[ "$LINT_RESULT" != "success" || "$TEST_RESULT" != "success" || "$RELEASE_CHECKS_RESULT" != "success" || "$RELEASE_BUNDLE_RESULT" != "success" || "$RELEASE_MODEL_RESULT" != "success" || "$AISLOP_RESULT" != "success" ]]; then
+            echo "CI did not succeed: lint=$LINT_RESULT, test=$TEST_RESULT, release-checks=$RELEASE_CHECKS_RESULT, release-bundle=$RELEASE_BUNDLE_RESULT, release-model=$RELEASE_MODEL_RESULT, aislop=$AISLOP_RESULT"
             exit 1
           fi
