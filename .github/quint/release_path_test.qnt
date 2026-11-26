@@ -300,6 +300,25 @@ module javaR2bPathsTest {
       .then(githubRelease(2))
       .expect(s.releases.contains(2) and s.duplicateAttempts == 0 and safety)
 
+  // =none の食い違いだけで、ほかの版のアップロードも止まる（版 2 は PUBLISHED。止めるのは食い違いのガードだけ）。
+  // 行を消したあとは版 3 を出せる（#924 の CodeRabbit の指摘）
+  run wrongNoneBlocksOtherVersionsTest =
+    tagged2
+      .then(publishJobAt(2, false, 0, 0))
+      .then(portalResolve(2, true))
+      .then(wrongNone(2))
+      .then(openReleasePR(3))
+      .then(mergePR(1, 0))
+      .then(tagJob(3))
+      .then(publishJobAt(3, false, 0, 0))
+      .expect(s.publishFailed.contains(3) and deployOf(s, 3) == NoDeploy)
+      .then(fixNone(2))
+      .then(rerunPublishJob(3))
+      .then(publishJobAt(3, false, 0, 0))
+      .expect(deployOf(s, 3) == Processing)
+      .then(portalResolve(3, true))
+      .expect(s.publishOrder == [2, 3] and s.duplicateAttempts == 0 and safety)
+
   // FAILED → Portal で drop → 照会が失敗して止まる → 人が none を入れる → 公開し直す
   run droppedFailedTest =
     tagged2

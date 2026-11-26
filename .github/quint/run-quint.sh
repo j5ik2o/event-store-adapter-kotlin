@@ -6,6 +6,8 @@
 # 環境変数 QUINT：quint のコマンド（既定 quint）。CI は npx で版を固定して使う。
 set -euo pipefail
 cd "$(dirname "$0")"
+# 結果の行（[ok]・[violation]）を先頭から読むので、色の付いた出力にしない（FORCE_COLOR=1 の環境でも）
+export FORCE_COLOR=0 NO_COLOR=1
 read -r -a Q <<< "${QUINT:-quint}"
 mode="${1:-ci}"
 SEED=7
@@ -48,27 +50,36 @@ for main in "${TESTS[@]}"; do
 done
 for main in "${positive[@]}"; do
   echo "## ${main}  (expect: no violation of safety)"
-  if ! "${Q[@]}" run release_path.qnt --main="$main" --invariant=safety --max-samples="$samples" \
-    --max-steps="$STEPS" --seed="$SEED" > "$log" 2>&1; then
+  if "${Q[@]}" run release_path.qnt --main="$main" --invariant=safety --max-samples="$samples" \
+    --max-steps="$STEPS" --seed="$SEED" > "$log" 2>&1 && grep -qE '^\[ok\]' "$log"; then
+    grep -E '^\[ok\]' "$log"
+  else
     tail -n 40 "$log"
     failed=1
   fi
-  grep -E '^\[(ok|violation)\]' "$log"
 done
 for item in "${negative[@]}"; do
   main="${item%%:*}"
   invariant="${item#*:}"
   echo "## ${main}  invariant=${invariant}  (expect: violation)"
-  if "${Q[@]}" run release_path.qnt --main="$main" --invariant="$invariant" --max-samples="$samples" \
-    --max-steps="$STEPS" --seed="$SEED" > "$log" 2>&1; then
+  # 反例は、非ゼロの終了と [violation] の両方。実行時の誤り（[error]）は反例と数えず、診断を出して失敗にする
+  if ! "${Q[@]}" run release_path.qnt --main="$main" --invariant="$invariant" --max-samples="$samples" \
+    --max-steps="$STEPS" --seed="$SEED" > "$log" 2>&1 && grep -qE '^\[violation\]' "$log"; then
+    grep -E '^\[violation\]' "$log"
+  else
     echo "expected a violation of ${invariant} in ${main}, found none"
+    tail -n 40 "$log"
     failed=1
   fi
-  grep -E '^\[(ok|violation)\]' "$log"
 done
 if [[ "$mode" == full ]]; then
   echo "## java  invariant=neverTimesOutAfterPublished  (expect: no violation)"
-  "${Q[@]}" run release_path.qnt --main=java --invariant=neverTimesOutAfterPublished --max-samples="$samples" \
-    --max-steps="$STEPS" --seed="$SEED" | grep -E '^\[(ok|violation)\]' || failed=1
+  if "${Q[@]}" run release_path.qnt --main=java --invariant=neverTimesOutAfterPublished --max-samples="$samples" \
+    --max-steps="$STEPS" --seed="$SEED" > "$log" 2>&1 && grep -qE '^\[ok\]' "$log"; then
+    grep -E '^\[ok\]' "$log"
+  else
+    tail -n 40 "$log"
+    failed=1
+  fi
 fi
 exit "$failed"

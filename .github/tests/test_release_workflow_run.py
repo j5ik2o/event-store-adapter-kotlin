@@ -275,10 +275,41 @@ class ReleaseWorkflowRunTest(unittest.TestCase):
                           "if: success()\n        env:\n          RELEASE_TAG"),
                          ('${{ github.ref_name }}', '${{ github.event.ref }}'),
                          ('uses: actions/setup-python@v7', 'uses: some/action@v1'),
-                         ('SIGNING_KEY: ${{ secrets.SIGNING_KEY }}', "SIGNING_KEY: ${{ format('{0}', secrets.SIGNING_KEY) }}")):
+                         ('SIGNING_KEY: ${{ secrets.SIGNING_KEY }}', "SIGNING_KEY: ${{ format('{0}', secrets.SIGNING_KEY) }}"),
+                         # ジョブの env の式も、写していなければ拒否する（#924 の CodeRabbit の指摘）
+                         ('      JAVA_OPTS: -Xms2048M', '      JAVA_OPTS: ${{ github.event.ref }} -Xms2048M')):
             with self.subTest(new):
                 with self.assertRaises(UnknownExpression):
                     self.run_release(workspace, tag, workflow=RELEASE.replace(old, new, 1))
+
+
+    def bare_runner(self):
+        return Runner(RELEASE, self.directory, self.directory, {}, {}, {}, {})
+
+    def test_the_runner_compares_strings_like_actions(self):
+        # Actions の == と != は大文字と小文字を区別しない（#924 の CodeRabbit の指摘）
+        runner = self.bare_runner()
+        runner.step_outputs = {'precheck': {'action': 'upload'}}
+        self.assertTrue(runner.condition("steps.precheck.outputs.action == 'UPLOAD'", False))
+        self.assertFalse(runner.condition("steps.precheck.outputs.action != 'Upload'", False))
+        self.assertFalse(runner.condition("steps.precheck.outputs.action == 'upload'", True))
+        self.assertTrue(runner.condition("always() && steps.precheck.outputs.action == 'upload'", True))
+
+    def test_the_runner_records_an_artifact_only_when_its_file_exists(self):
+        # upload-artifact は、ファイルが無ければ error のときだけ失敗し、ほかは何も残さない（#924 の CodeRabbit の指摘）
+        missing = self.directory / 'missing.txt'
+        for mode, error in (('error', True), ('warn', False), ('ignore', False), (None, False)):
+            with self.subTest(mode=mode):
+                runner = self.bare_runner()
+                runner.artifacts = []
+                setting = f'          if-no-files-found: {mode}\n' if mode else ''
+                item = {'uses': 'actions/upload-artifact@v7',
+                        'text': f'\n        with:\n          name: record\n          path: {missing}\n{setting}'}
+                self.assertEqual(bool(runner.uses(item, set())), error)
+                self.assertEqual(runner.artifacts, [])
+        missing.write_text('x')
+        runner.uses(item, set())
+        self.assertEqual(runner.artifacts, [('record', str(missing))])
 
 
 if __name__ == '__main__':

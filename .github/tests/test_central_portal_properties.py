@@ -405,13 +405,16 @@ class WaitPropertiesTest(unittest.TestCase):
     def test_confirm(self, rounds, attempts):
         calls = []
 
+        artifacts = portal.bundle.ARTIFACTS
+
         def fake_http(method, url, headers=None, body=None, timeout=60):
-            index = len(calls)
+            # 応答は呼んだ順ではなく、URL の POM で選ぶ（同じ POM を6回読んでも、6つを読んだことにならない）
+            round_index = len(calls) // len(artifacts)
             calls.append(url)
             if '/publisher/' in url:
                 raise AssertionError('confirm must not call the Portal')
-            round_index, artifact_index = divmod(index, 6)
-            code = rounds[round_index][artifact_index] if round_index < len(rounds) else 404
+            artifact = next(name for name in artifacts if url.endswith(f'/{name}/5.3.0/{name}-5.3.0.pom'))
+            code = rounds[round_index][artifacts.index(artifact)] if round_index < len(rounds) else 404
             return code, b''
 
         original = commands.http
@@ -425,6 +428,9 @@ class WaitPropertiesTest(unittest.TestCase):
             outcome = 'timeout'
         finally:
             commands.http = original
+        for start in range(0, len(calls), len(artifacts)):
+            self.assertEqual(sorted(url.rsplit('/', 1)[1] for url in calls[start:start + len(artifacts)]),
+                             sorted(f'{name}-5.3.0.pom' for name in artifacts))
         first = next((index + 1 for index, codes in enumerate(rounds) if all(code == 200 for code in codes)), None)
         if first is not None and first <= attempts:
             self.assertEqual((outcome, len(calls)), ('ok', first * 6))

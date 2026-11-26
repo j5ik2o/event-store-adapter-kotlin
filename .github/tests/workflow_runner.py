@@ -16,7 +16,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from release_test_support import job, outputs
+from release_test_support import LOOPBACK, job, outputs
 from release_workflow_canonical import release_steps
 
 SKIPPED_ACTIONS = ('actions/checkout@', 'actions/setup-python@', 'actions/setup-java@', 'gradle/actions/setup-gradle@')
@@ -108,7 +108,8 @@ class Runner:
         if not found:
             raise UnknownExpression(f'if: not modelled: {expression}')
         value = self.step_outputs.get(found.group(1), {}).get(found.group(2), '')
-        result = (value == found.group(4)) == (found.group(3) == '==')
+        # Actions の文字列の == と != は、大文字と小文字を区別しない
+        result = (value.casefold() == found.group(4).casefold()) == (found.group(3) == '==')
         return result if always else (not failed and result)
 
     def uses(self, item, used):
@@ -118,8 +119,9 @@ class Runner:
         if action.startswith('actions/upload-artifact@'):
             settings = {key: self.expand(value, used) for key, value in with_block(item['text']).items()}
             path = Path(settings['path'])
-            if settings.get('if-no-files-found') == 'error' and not path.is_file():
-                return f'no file at {path}'
+            if not path.is_file():
+                # upload-artifact は、ファイルが無ければ error のときだけ失敗し、ほか（warn・ignore・既定）は何も残さずに成功する
+                return f'no file at {path}' if settings.get('if-no-files-found') == 'error' else None
             self.artifacts.append((settings['name'], str(path)))
             return None
         raise UnknownExpression(f'uses: not modelled: {action}')
@@ -142,7 +144,8 @@ class Runner:
                                           secrets=frozenset(used)))
                 failed = failed or bool(error)
                 continue
-            env = {**self.environment, **job_env,
+            # ジョブの env も手順の env と同じく展開する（写していない式は UnknownExpression）
+            env = {**self.environment, **{key: self.expand(value, used) for key, value in job_env.items()},
                    **{key: self.expand(value, used) for key, value in item['env'].items()}}
             output = self.temp / f'output-{number}'
             output.write_text('')
@@ -169,4 +172,6 @@ def default_environment(workspace, temp, repository, run_id, attempt, api_url, p
         'GITHUB_WORKSPACE': str(workspace), 'RUNNER_TEMP': str(temp), 'GITHUB_REPOSITORY': repository,
         'GITHUB_RUN_ID': str(run_id), 'GITHUB_RUN_ATTEMPT': str(attempt), 'GITHUB_API_URL': api_url,
         'GITHUB_STEP_SUMMARY': str(Path(temp) / 'summary.md'), 'LANG': os.environ.get('LANG', 'C.UTF-8'),
+        # 手元の HTTP のスタブ（127.0.0.1）への要求を、環境のプロキシへ送らない
+        'no_proxy': LOOPBACK, 'NO_PROXY': LOOPBACK,
     }

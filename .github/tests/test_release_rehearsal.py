@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from central_portal_support import Stub
-from release_test_support import BUMP, GITHUB, REPOSITORY, VERSION_FILE, outputs, pull, run_body, serve_required
+from release_test_support import BUMP, GITHUB, LOOPBACK, REPOSITORY, VERSION_FILE, outputs, pull, run_body, serve_required
 from test_release_workflow_shape import GATE_STEP
 
 FAKE_GH = '''#!/bin/sh
@@ -49,7 +49,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
         serve_required(self.stub, lambda artifact: self.required)
         self.env = {
             **os.environ,
-            'REPO1_URL': self.stub.url + '/repo1',
+            'REPO1_URL': self.stub.url + '/repo1', 'no_proxy': LOOPBACK, 'NO_PROXY': LOOPBACK,
             'PATH': f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
             'FAKE_PULLS': str(self.pulls),
             'FAKE_GH_CALLS': str(self.directory / 'gh-calls'),

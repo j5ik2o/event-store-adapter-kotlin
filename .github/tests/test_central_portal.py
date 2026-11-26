@@ -1,6 +1,7 @@
 """central-portal.py の例のテスト。判定（decide）は事実を組み立てて、照会はスタブの HTTP サーバーで確かめる。"""
 import base64
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,7 @@ from pathlib import Path
 from central_portal_support import (
     ID_A, ID_B, NOW, RUN, Stub, facts, fixture_jobs, named, passed_pre_steps, portal, record, release_job, run,
 )
-from release_test_support import GITHUB, outputs
+from release_test_support import GITHUB, LOOPBACK, outputs
 
 Stop = portal.Stop
 
@@ -250,6 +251,7 @@ class StubbedCommandsTest(unittest.TestCase):
         self.stub = Stub()
         self.addCleanup(self.stub.close)
         self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory, ignore_errors=True)
         self.output = self.directory / 'output'
         self.summary = self.directory / 'summary'
         self.output.write_text('')
@@ -285,7 +287,7 @@ class StubbedCommandsTest(unittest.TestCase):
             'GITHUB_RUN_ATTEMPT': str(attempt), 'SONATYPE_USERNAME': 'user', 'SONATYPE_PASSWORD': 'secret-password',
             'CENTRAL_DEPLOYMENTS': '', 'GITHUB_API_URL': self.stub.url, 'CENTRAL_API_URL': self.stub.url,
             'REPO1_URL': self.stub.url + '/maven2', 'GITHUB_OUTPUT': str(self.output),
-            'GITHUB_STEP_SUMMARY': str(self.summary), **extra,
+            'GITHUB_STEP_SUMMARY': str(self.summary), 'no_proxy': LOOPBACK, 'NO_PROXY': LOOPBACK, **extra,
         }
         env.pop('GITHUB_ACTIONS', None)
         result = subprocess.run([sys.executable, str(GITHUB / 'central-portal.py'), *args], env=env,

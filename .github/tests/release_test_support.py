@@ -11,6 +11,8 @@ BUMP = (WORKFLOWS / 'bump-version.yml').read_text()
 RELEASE = (WORKFLOWS / 'release.yml').read_text()
 REPOSITORY = 'o/r'
 VERSION_FILE = 'version'
+# 手元の HTTP のスタブ（127.0.0.1）を叩く子プロセスの no_proxy（環境のプロキシへ送らない）
+LOOPBACK = '127.0.0.1,localhost'
 
 
 def load_script(filename, name):
