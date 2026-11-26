@@ -406,11 +406,13 @@ class WaitPropertiesTest(unittest.TestCase):
         calls = []
 
         artifacts = portal.bundle.ARTIFACTS
+        methods = []
 
         def fake_http(method, url, headers=None, body=None, timeout=60):
             # 応答は呼んだ順ではなく、URL の POM で選ぶ（同じ POM を6回読んでも、6つを読んだことにならない）
             round_index = len(calls) // len(artifacts)
             calls.append(url)
+            methods.append(method)
             if '/publisher/' in url:
                 raise AssertionError('confirm must not call the Portal')
             artifact = next(name for name in artifacts if url.endswith(f'/{name}/5.3.0/{name}-5.3.0.pom'))
@@ -428,6 +430,8 @@ class WaitPropertiesTest(unittest.TestCase):
             outcome = 'timeout'
         finally:
             commands.http = original
+        # repo1 には HEAD だけを送る（本文を読まない。#924 の CodeRabbit の指摘）
+        self.assertEqual(set(methods), {'HEAD'} if calls else set())
         for start in range(0, len(calls), len(artifacts)):
             self.assertEqual(sorted(url.rsplit('/', 1)[1] for url in calls[start:start + len(artifacts)]),
                              sorted(f'{name}-5.3.0.pom' for name in artifacts))
