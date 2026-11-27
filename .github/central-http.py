@@ -41,7 +41,8 @@ def read_body(response, deadline, timeout):
     締め切りを超えて待つ（#925）。そこで、
     - 受信の前ごとに socket の timeout を締め切りの残りにし、read1（受信は1回）で読み、読むたびに締め切りを確かめる。
     - chunked の長さの行のように1回の read1 の中で何度も受信する場合に備え、締め切りに socket を閉じる（shutdown）。
-      閉じたあとの受信は失敗し、照会の失敗になる。締め切りのあとに読み終えた本文も使わない。"""
+      閉じたあとの受信は失敗し、照会の失敗になる。締め切りのあとに読み終えた本文も使わない。
+    - Content-Length に足りない本文は、途中で切れた応答（IncompleteRead）。"""
     sock = response_socket(response)
     read = getattr(response, 'read1', None) or response.read
     watchdog = Watchdog(sock, deadline.remaining()) if sock is not None else None
@@ -59,7 +60,14 @@ def read_body(response, deadline, timeout):
             chunks.append(chunk)
         if deadline.remaining() <= 0:
             raise TimeoutError('the deadline passed while reading the body')
-        return b''.join(chunks)
+        body = b''.join(chunks)
+        # read1 は、Content-Length に足りないまま接続が閉じても IncompleteRead を投げずに b'' を返す（read は投げる）。
+        # 残りの長さが 0 でなければ、途中で切れた応答として照会の失敗にする（java#871 の Devin の指摘）。
+        # chunked は終わりの chunk が来なければ http.client が IncompleteRead を投げる
+        left_over = getattr(response, 'length', None)
+        if isinstance(left_over, int) and left_over > 0:
+            raise http_client.IncompleteRead(body, left_over)
+        return body
     finally:
         if watchdog is not None:
             watchdog.cancel()

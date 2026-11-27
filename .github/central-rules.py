@@ -233,17 +233,20 @@ def attempt_records(facts):
             attempt, deployment = parsed
             if attempt in artifacts and artifacts[attempt] != deployment:
                 raise Stop(f'run {run.id} attempt {attempt} has two deployment records')
-            # 期限の短い記録は、変数に同じ ID の行があれば止めない（変数は消えないので、記録が消えても ID を失わない）。
-            # 保存期間を 90 日に戻しても、既にある記録の expires_at は変わらないため（#925。scala#934 の指摘）。
-            # Portal の状態は、その ID で今までどおり照会する（処理中なら待ち、公開済みなら上げない）
-            kept = overrides.attempts.get((run.id, attempt)) == deployment
+            # 期限の短い記録は、変数に同じ ID の行か =none の行があれば止めない（変数は消えないので、記録が消えても
+            # 試みの行方を失わない）。保存期間を 90 日に戻しても、既にある記録の expires_at は変わらないため（#925）。
+            # Portal の状態は、その ID で今までどおり照会する（処理中なら待ち、公開済みなら上げない）。=none でも記録の ID を
+            # 照会し（N1）、Portal に無ければ先へ、まだあれば食い違いで止める。Portal から消えた deployment の記録が
+            # 残っていても、=none で先へ進める（java#871 の Devin の指摘）
+            kept = overrides.attempts.get((run.id, attempt)) in (deployment, NONE)
+            lines = (f'add {run.id}/{attempt}={deployment} to CENTRAL_DEPLOYMENTS ({run.id}/{attempt}=none if the Portal '
+                     'dropped that deployment)')
             if artifact.expired and not kept:
-                raise Stop(f'the record {artifact.name} of run {run.id} has expired; add {run.id}/{attempt}={deployment} '
-                           'to CENTRAL_DEPLOYMENTS, and keep the artifact retention at 90 days')
+                raise Stop(f'the record {artifact.name} of run {run.id} has expired; {lines}, and keep the artifact '
+                           'retention at 90 days')
             if (artifact.expires_at is None or artifact.expires_at < run.created_at + WINDOW) and not kept:
-                raise Stop(f'the record {artifact.name} of run {run.id} expires before {WINDOW.days} days; add '
-                           f'{run.id}/{attempt}={deployment} to CENTRAL_DEPLOYMENTS, and keep the artifact retention at '
-                           '90 days for new records')
+                raise Stop(f'the record {artifact.name} of run {run.id} expires before {WINDOW.days} days; {lines}, and '
+                           'keep the artifact retention at 90 days for new records')
             artifacts[attempt] = deployment
         jobs = executions(run.jobs)
         # release ジョブが一覧に無い試み（run 全体の startup_failure、一覧の欠け）は、アップロードしたかもしれないと見る。

@@ -16,6 +16,7 @@ FAKE_GH = '''#!/usr/bin/env python3
 #   （回数は FAKE_GH_CALLS に数える。この道だけを数える）。
 # pulls/<番号>：$FAKE_PULLS の同じ番号の項目。FAKE_GH_PULL_FAIL があれば失敗する。
 # releases：$FAKE_RELEASES（1行に1つのタグ）。FAKE_RELEASES_FAIL があれば失敗する。release create・edit は FAKE_LOG に書く。
+# 下書きかプレリリースを問う照会（--jq に .draft or .prerelease）には `タグ<TAB>true|false` を返す。
 import json, os, re, sys
 args = sys.argv[1:]
 path = next((arg for arg in args[1:] if arg.startswith('repos/')), '')
@@ -40,9 +41,10 @@ elif args[:1] == ['api'] and path.endswith('/releases'):
     if os.environ.get('FAKE_RELEASES_FAIL'):
         sys.exit('HTTP 502')
     tags = [line for line in open(os.environ['FAKE_RELEASES']).read().splitlines() if line]
-    drafts = set(filter(None, os.environ.get('FAKE_DRAFTS', '').split()))
-    if '.[] | select(.draft | not) | .tag_name' in args:
-        tags = [tag for tag in tags if tag not in drafts]
+    # 下書きとプレリリース（FAKE_DRAFTS・FAKE_PRERELEASES）は、.draft or .prerelease を問う照会のときだけ見分ける
+    hidden = set((os.environ.get('FAKE_DRAFTS', '') + ' ' + os.environ.get('FAKE_PRERELEASES', '')).split())
+    if any('.draft or .prerelease' in arg for arg in args):
+        tags = [f'{tag}\\t{str(tag in hidden).lower()}' for tag in tags]
     print('\\n'.join(tags))
 elif args[:2] == ['release', 'create']:
     with open(os.environ['FAKE_RELEASES'], 'a') as releases:

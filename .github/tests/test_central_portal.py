@@ -179,7 +179,7 @@ class DecideTest(unittest.TestCase):
             portal.record_name(1, ID_A), False, NOW + timedelta(days=10))])
         self.assert_stops(facts([short]), '90 days')
         # 止める文は、足す行をそのまま出す
-        self.assert_stops(facts([expired]), f'add {RUN}/1={ID_A} to CENTRAL_DEPLOYMENTS')
+        self.assert_stops(facts([expired]), f'add {RUN}/1={ID_A} to CENTRAL_DEPLOYMENTS ({RUN}/1=none if the Portal')
         # 保存期間を戻しても既にある記録の期限は変わらない。変数に同じ ID を書けば、Portal の状態で決める（#925）
         for record_run in (expired, short):
             with self.subTest(expired=record_run is expired):
@@ -187,9 +187,17 @@ class DecideTest(unittest.TestCase):
                 self.assertEqual(self.decide(kept), portal.Decision('wait', waiting=(ID_A,)))
                 published = facts([record_run], overrides=f'{RUN}/1={ID_A}', statuses={ID_A: named('PUBLISHED')})
                 self.assertEqual(self.decide(published).action, 'published')
-                # 別の ID は食い違いとして止まる。=none も ID を残さないので止まる
+                # 別の ID は食い違いとして止まる
                 self.assert_stops(facts([record_run], overrides=f'{RUN}/1={ID_B}'))
-                self.assert_stops(facts([record_run], overrides=f'{RUN}/1=none'))
+                # Portal から消えた deployment（ABSENT）の記録が残る：ID の行は「見つからない」で止まり、=none で先へ進める。
+                # =none でも記録の ID を照会するので、Portal がまだ知っていれば食い違いで止まる（java#871 の Devin の指摘）
+                dropped = {ID_A: portal.Status(portal.ABSENT)}
+                self.assert_stops(facts([record_run], overrides=f'{RUN}/1={ID_A}', statuses=dropped),
+                                  f'add {RUN}/1=none')
+                self.assertEqual(self.decide(facts([record_run], overrides=f'{RUN}/1=none', statuses=dropped)).action,
+                                 'upload')
+                self.assert_stops(facts([record_run], overrides=f'{RUN}/1=none', statuses={ID_A: named('PUBLISHED')}),
+                                  'has no deployment, but')
 
     def test_a_deleted_record_is_not_covered_by_a_checked_tag(self):
         # run は残り、試みの ID の artifact だけが消えた：tag/vX.Y.Z=checked では通らず、試みの行が要る（CONTRIBUTING の表）

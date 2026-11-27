@@ -222,6 +222,21 @@ class ReleaseGateTest(unittest.TestCase):
         return subprocess.run([sys.executable, str(GATE_SCRIPT), *args], input=stdin, cwd=cwd,
                               text=True, capture_output=True, check=False)
 
+    def test_latest_release(self):
+        listing = 'v5.2.0\tfalse\nv5.4.0\tfalse\nv5.5.0\ttrue\nv6.0.0-rc.1\tfalse\nv1.0.511\tfalse\n'
+        self.assertEqual(gate.latest_release(listing, 'v5.3.0'), 'v5.4.0')
+        self.assertEqual(gate.latest_release('v5.2.0\tfalse\n', 'v5.4.0'), 'v5.4.0')      # 一覧が遅れても今のタグ
+        self.assertEqual(gate.latest_release('v5.2.0\tfalse\nv5.4.0\ttrue\n', 'v5.4.0'), 'v5.2.0')
+        self.assertIsNone(gate.latest_release('v5.4.0\ttrue\n', 'v5.4.0'))
+        self.assertIsNone(gate.latest_release('', 'v5.4.0-rc.1'))
+        for broken in ('v5.2.0\n', 'v5.2.0\tyes\n', 'v5.2.0\tfalse\tx\n'):
+            with self.subTest(broken=broken), self.assertRaises(gate.GateError):
+                gate.latest_release(broken, 'v5.4.0')
+        result = self.cli('latest-release', '--tag', 'v5.3.0', stdin=listing)
+        self.assertEqual((result.returncode, result.stdout), (0, 'v5.4.0\n'))
+        result = self.cli('latest-release', '--tag', 'v5.3.0', stdin='v5.2.0 false\n')
+        self.assertEqual(result.returncode, 1)
+
     def test_cli_latest_tag(self):
         self.assertEqual(self.cli('latest-tag', stdin='v5.1.0\nv5.2.0\nv6.0.0-rc.1\n').stdout, 'v5.2.0\n')
         self.assertEqual(self.cli('latest-tag', stdin='').stdout, '')

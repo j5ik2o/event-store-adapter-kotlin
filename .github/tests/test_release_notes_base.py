@@ -104,6 +104,21 @@ class GitHubReleaseTest(unittest.TestCase):
         out, _ = self.release(['v5.2.0', 'v5.3.1-rc.1', 'v5.3.9x'])
         self.assertIn('release notes from v5.2.0', out)
 
+    def test_drafts_and_prereleases_are_not_published_releases(self):
+        # 下書きとプレリリースは、公開を確かめたリリースに数えない（java#871 の Devin の指摘）
+        result = self.run_step('Create the GitHub release', ['v5.2.0', 'v5.3.0'], FAKE_DRAFTS='v5.3.0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('release notes from v5.2.0', result.stdout)
+        result = self.run_step('Create the GitHub release', ['v5.2.0', 'v5.3.0'], FAKE_PRERELEASES='v5.3.0')
+        self.assertIn('release notes from v5.2.0', result.stdout)
+        # 今のタグのリリースが下書きかプレリリースとしてだけある：作り足さず、省きもせずに止まる
+        for hidden in ('FAKE_DRAFTS', 'FAKE_PRERELEASES'):
+            with self.subTest(hidden):
+                result = self.run_step('Create the GitHub release', ['v5.2.0', 'v5.4.0'], **{hidden: 'v5.4.0'})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('is a draft or a pre-release', result.stdout + result.stderr)
+                self.assertEqual(self.calls('release'), [])
+
     def test_the_release_is_created_without_taking_latest(self):
         self.release(['v5.2.0'])
         created = self.calls('release', 'create')
@@ -129,9 +144,17 @@ class GitHubReleaseTest(unittest.TestCase):
         _, edits = self.mark(['v5.2.0'], 'v5.4.0')
         self.assertEqual(edits[0][2], 'v5.4.0')
 
-    def test_a_draft_is_not_marked_latest(self):
+    def test_a_draft_or_a_prerelease_is_not_marked_latest(self):
+        # 下書きとプレリリースは候補から外す。今のタグも、下書きかプレリリースとして一覧にあれば外す（java#871 の Devin の指摘）
         _, edits = self.mark(['v5.2.0', 'v5.4.0', 'v5.5.0'], 'v5.4.0', FAKE_DRAFTS='v5.5.0')
         self.assertEqual(edits[0][2], 'v5.4.0')
+        _, edits = self.mark(['v5.2.0', 'v5.4.0', 'v5.5.0'], 'v5.4.0', FAKE_PRERELEASES='v5.5.0')
+        self.assertEqual(edits[0][2], 'v5.4.0')
+        _, edits = self.mark(['v5.2.0', 'v5.5.0'], 'v5.5.0', FAKE_PRERELEASES='v5.5.0')
+        self.assertEqual(edits[0][2], 'v5.2.0')
+        result, edits = self.mark(['v5.5.0'], 'v5.5.0', FAKE_DRAFTS='v5.5.0')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(edits, [])
 
     def test_a_failed_listing_marks_nothing(self):
         result, edits = self.mark(['v5.2.0'], 'v5.4.0', FAKE_RELEASES_FAIL='1')
@@ -141,12 +164,20 @@ class GitHubReleaseTest(unittest.TestCase):
     @settings(max_examples=40, deadline=None)
     @given(st.lists(st.sampled_from(['v5.2.0', 'v5.3.0', 'v5.4.0', 'v5.10.0', 'v10.0.0', 'v1.0.511', 'v6.0.0-rc.1',
                                      'v5.3.9x', 'release']), max_size=6, unique=True),
-           st.sets(st.sampled_from(['v5.4.0', 'v5.10.0', 'v10.0.0'])),
+           st.sets(st.sampled_from(['v5.2.0', 'v5.4.0', 'v5.10.0', 'v10.0.0'])),
+           st.sets(st.sampled_from(['v5.3.0', 'v5.10.0', 'v10.0.0'])),
            st.sampled_from(['v5.2.0', 'v5.3.0', 'v5.4.0', 'v5.10.0']))
-    def test_p_latest_is_the_greatest_of_the_list_and_the_current_tag(self, releases, drafts, tag):
-        """Latest は「下書きでない一覧 ∪ {今のタグ}」の最大の vX.Y.Z（順序と回数に依らない）。"""
-        _, edits = self.mark(releases, tag, FAKE_DRAFTS=' '.join(drafts))
-        stable = [name for name in set(releases) - drafts | {tag} if re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', name)]
+    def test_p_latest_is_the_greatest_of_the_list_and_the_current_tag(self, releases, drafts, prereleases, tag):
+        """Latest は「下書きでもプレリリースでもない一覧 ∪ {今のタグ（下書きかプレリリースとして一覧にあれば外す）}」の
+        最大の vX.Y.Z（順序と回数に依らない）。候補が無ければ失敗して何もしない。"""
+        hidden = (drafts | prereleases) & set(releases)
+        result, edits = self.mark(releases, tag, FAKE_DRAFTS=' '.join(drafts), FAKE_PRERELEASES=' '.join(prereleases))
+        candidates = (set(releases) - hidden) | ({tag} if tag not in hidden else set())
+        stable = [name for name in candidates if re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', name)]
+        if not stable:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(edits, [])
+            return
         expected = max(stable, key=lambda name: tuple(int(part) for part in name[1:].split('.')))
         self.assertEqual([edit[2] for edit in edits], [expected])
 

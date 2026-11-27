@@ -257,6 +257,65 @@ class TrickleTest(unittest.TestCase):
         return path
 
 
+class ShortBodyTest(unittest.TestCase):
+    """read1 は、Content-Length に足りないまま接続が閉じると、IncompleteRead を投げずに b'' を返す。受け取った部分を
+    本文と見ず、照会の失敗にする（java#871 の Devin の指摘）。受け取った部分が PUBLISHED に読めても使わない。"""
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {'no_proxy': LOOPBACK, 'NO_PROXY': LOOPBACK})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def serve(self, raw):
+        """1回だけ答える本物のサーバー。raw をそのまま送って閉じる。"""
+        server = socket.socket()
+        server.bind(('127.0.0.1', 0))
+        server.listen(1)
+        self.addCleanup(server.close)
+
+        def answer():
+            connection, _ = server.accept()
+            with connection:
+                connection.recv(65536)
+                connection.sendall(raw)
+        threading.Thread(target=answer, daemon=True).start()
+        return f'http://127.0.0.1:{server.getsockname()[1]}/x'
+
+    def test_a_body_shorter_than_its_content_length_is_a_failed_query(self):
+        cases = {
+            'status 200': b'HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{"deploymentState": "PUBLISHED"}',
+            'status 404': b'HTTP/1.1 404 Not Found\r\nContent-Length: 100\r\n\r\nmissing',
+            'empty body': b'HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n',
+            'chunked without the last chunk': b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n',
+            'chunked cut inside a chunk': b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\na\r\nhel',
+        }
+        for label, raw in cases.items():
+            for deadline in (None, commands.Deadline(30)):
+                with self.subTest(label, deadline=deadline is not None):
+                    commands.DEADLINE = deadline
+                    try:
+                        self.assertEqual(commands.http('GET', self.serve(raw), timeout=5), (None, b''))
+                    finally:
+                        commands.DEADLINE = None
+
+    def test_a_complete_body_is_read(self):
+        cases = {
+            'content length': (b'HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello', (200, b'hello')),
+            'chunked': (b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n', (200, b'hello')),
+            'until the connection closes': (b'HTTP/1.0 200 OK\r\n\r\nhello', (200, b'hello')),
+            'error status': (b'HTTP/1.1 404 Not Found\r\nContent-Length: 7\r\n\r\nmissing', (404, b'missing')),
+        }
+        for label, (raw, expected) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(commands.http('GET', self.serve(raw), timeout=5), expected)
+
+    def test_a_cut_status_answer_is_not_read_as_published(self):
+        # Portal の status の照会が途中で切れても、PUBLISHED と読まない（照会の失敗。precheck は止まり、wait は次の照会へ）
+        raw = b'HTTP/1.1 200 OK\r\nContent-Length: 200\r\n\r\n{"deploymentState": "PUBLISHED", "deploymentName": "x"}'
+        with mock.patch.object(commands, 'central_url', return_value=self.serve(raw)):
+            self.assertEqual(commands.query_status('x', {}).state, portal.QUERY_FAILED)
+
+
 class WatchdogTest(unittest.TestCase):
     def test_a_socket_that_cannot_be_shut_down_fails_the_query(self):
         """締め切りに socket を閉じられなかったら、握りつぶさずにその照会を時間切れにする。"""

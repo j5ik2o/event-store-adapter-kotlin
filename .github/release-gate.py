@@ -5,6 +5,8 @@ event-store-adapter-js の .github/release-gate.py を写し、版のファイ�
 
 latest-tag                   標準入力のタグ名から、最大の正式版のタグ (vX.Y.Z) を書く（無ければ何も書かない）。
 required-version             公開先に必要な版 REQUIRED_PUBLISHED を書く（無ければ何も書かない）。
+latest-release --tag <vX.Y.Z> 標準入力の GitHub のリリース（1行に `タグ<TAB>下書きかプレリリースか（true|false）`）と今のタグ
+                             から、Latest にする最大の正式版のタグを書く（無ければ何も書かない）。
 set-version <X.Y.Z>          `version` の版を書き換える。版の後ろの改行の有無は元のまま残す。
 check-next <X.Y.Z>           次の版が `version` の今の版より大きいかを確かめる（版上げの PR を開く前。下げる PR を作らない）。
 check --mode tag|publish ... コミットが、版上げの PR を squash したものかを確かめる。
@@ -189,6 +191,22 @@ def approved_release(candidate, before, after, same_newline):
     return tag
 
 
+def latest_release(listing, current):
+    """Latest にするタグ。候補は、下書きでもプレリリースでもないリリースのタグと、今のタグ（作った直後の一覧に
+    まだ出ないことがある）。今のタグも、下書きかプレリリースとしてだけ一覧にあれば外す（java#871 の Devin の指摘）。
+    listing は `タグ<TAB>true|false` の行。形の違う行は GateError。"""
+    shown, hidden = set(), set()
+    for number, line in enumerate(listing.splitlines(), 1):
+        if not line:
+            continue
+        fields = line.split('\t')
+        if len(fields) != 2 or fields[1] not in ('true', 'false'):
+            raise GateError(f'release list line {number} is not <tag><TAB>true|false: {line!r}')
+        (hidden if fields[1] == 'true' else shown).add(fields[0])
+    candidates = shown | ({current} if current not in hidden - shown else set())
+    return latest_tag(sorted(candidates))
+
+
 def check_candidate(mode, candidate, requested_tag=None):
     if candidate.parent is None:
         if mode == 'tag':
@@ -291,6 +309,8 @@ def main(argv):
     parser = argparse.ArgumentParser(prog='release-gate.py')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('latest-tag')
+    latest = commands.add_parser('latest-release')
+    latest.add_argument('--tag', required=True)
     commands.add_parser('required-version')
     setter = commands.add_parser('set-version')
     setter.add_argument('version')
@@ -317,6 +337,11 @@ def main(argv):
             print(REQUIRED_PUBLISHED)
         return 0
     try:
+        if args.command == 'latest-release':
+            tag = latest_release(sys.stdin.read(), args.tag)
+            if tag:
+                print(tag)
+            return 0
         if args.command == 'set-version':
             write_version(args.file, args.version)
             return 0

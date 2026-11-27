@@ -165,10 +165,16 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -o pipefail
-          # リリースの一覧は1回で読む。読めなければ止める（照会の失敗を「リリースなし」と見ない。#925）
-          RELEASED=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[].tag_name')
+          # リリースの一覧は1回で読む。読めなければ止める（照会の失敗を「リリースなし」と見ない。#925）。
+          # 行は `タグ<TAB>下書きかプレリリースか`。下書きとプレリリースは、公開を確かめたリリースに数えない
+          RELEASES=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | "\(.tag_name)\t\(.draft or .prerelease)"')
+          RELEASED=$(awk -F'\t' '$2 == "false" {print $1}' <<< "$RELEASES")
           if grep -qxF "$RELEASE_TAG" <<< "$RELEASED"; then
             echo "the GitHub release ${RELEASE_TAG} already exists"
+          elif cut -f1 <<< "$RELEASES" | grep -qxF "$RELEASE_TAG"; then
+            # 今のタグのリリースが下書きかプレリリースとしてだけある：作り足さず、省きもしない（java#871 の Devin の指摘）
+            echo "::error::the GitHub release ${RELEASE_TAG} is a draft or a pre-release; publish or delete it, then re-run this job"
+            exit 1
           else
             # 基点は、前にある正式版のタグのうち GitHub のリリースがあるもの（公開を確かめた版）。公開されずに飛んだ
             # タグの変更も、このリリースのノートに入れる（#925）。見つからなければ直前のタグ
@@ -200,11 +206,13 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -o pipefail
-          # リリースを作ったあとに一覧を読み直し、その一覧（下書きを除く）と今のタグのうち最大の正式版（vX.Y.Z）を Latest にする。
-          # 作った直後の一覧に今のタグがまだ出ないことがあるので、今のタグも候補に入れる。どの版の実行がどの順で動いても、
-          # 最後に動いた実行が、そのとき見えた最大の版を Latest にする（何度動いても同じ結果。#925。rs#375 の形）
-          RELEASED=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | select(.draft | not) | .tag_name')
-          LATEST_TAG=$(printf '%s\n%s\n' "$RELEASED" "$RELEASE_TAG" | python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py latest-tag)
+          # リリースを作ったあとに一覧を読み直し、その一覧（下書きとプレリリースを除く）と今のタグのうち最大の正式版（vX.Y.Z）を
+          # Latest にする。作った直後の一覧に今のタグがまだ出ないことがあるので、今のタグも候補に入れる（下書きかプレリリース
+          # としてだけ一覧にあれば外す）。最後に動いた実行が、そのとき一覧に見えた最大の版を Latest にする（何度動いても同じ
+          # 結果。#925。rs#375 の形）。保証は、一覧に最大の版が反映されていることが条件：反映が遅れると、あとから動いた旧版の
+          # 実行が旧版を Latest にしうる。そのときは、反映のあとに最大の版を Latest にし直す（CONTRIBUTING）
+          RELEASES=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | "\(.tag_name)\t\(.draft or .prerelease)"')
+          LATEST_TAG=$(printf '%s\n' "$RELEASES" | python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py latest-release --tag "$RELEASE_TAG")
           if [[ -z "$LATEST_TAG" ]]; then
             echo "::error::no GitHub release of a version vX.Y.Z exists"
             exit 1

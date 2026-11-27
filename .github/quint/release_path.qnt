@@ -463,6 +463,10 @@ module release_path {
         }
       }
     } else
+      // 関門か事前の確認で止まる。処理中の deployment を見た事前の確認は、実物では同じ実行の中で待ち（最大 60 分）、
+      // 待ちが明けたら事実とタグを読み直して決め直し、upload の直前にも関門をかける。ここでは「止まる → 再実行
+      // （rerunPublishJob）→ そのときの事実で決める」の跡で表す。待つあいだに起きる action は、止まってから再実行する
+      // までのあいだに入るので、実物の待ちの跡はどれもこの model の跡に含まれる（#925。java#871 の Devin の指摘）
       s' = { ...s, publishPending: s.publishPending.exclude(Set(v)), publishFailed: s.publishFailed.union(Set(v)) },
   }
 
