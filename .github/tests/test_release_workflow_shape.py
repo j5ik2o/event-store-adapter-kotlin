@@ -18,7 +18,8 @@ SECRET_STEPS = {'precheck': SONATYPE, 'bundle': SIGNING, 'upload': SONATYPE, 'de
 UPLOAD_IF = "steps.precheck.outputs.action == 'upload'"
 RECORD_IF = "always() && steps.upload.outputs.deployment != ''"
 PUBLISHED_IF = "needs.release.outputs.action == 'published' || needs.release.outputs.state == 'PUBLISHED'"
-STEP_IDS = [None, None, 'release_gate', None, None, None, 'build_version', 'precheck', 'bundle', 'upload', 'record',
+STEP_IDS = [None, None, 'release_gate', None, None, None, 'build_version', 'precheck', 'bundle', 'release_gate_again', 'upload',
+            'record',
             'deployment']
 
 # 関門の手順の本文（名前の行を除く）。正本の関門の手順は、これと一字一句同じ（test_release_rehearsal.py も使う）。
@@ -86,21 +87,36 @@ class CanonicalJudgeTest(unittest.TestCase):
     def test_ways_around_the_gate_are_not_a_gate(self):
         gate_body = 'bash "${GITHUB_WORKSPACE}"/.github/release-gate-inputs.sh "$RELEASE_SHA" "$GATE"\n'
         upload_if = f"        id: upload\n        if: {UPLOAD_IF}\n"
+        first_gate, second_gate = step(CANONICAL, 'release_gate'), step(CANONICAL, 'release_gate_again')
+
+        def in_step(gate_text, old, new):
+            # 関門の本文は2つの手順にあるので、壊すのは名指しした手順の中だけ
+            return replace_once(CANONICAL, gate_text, replace_once(gate_text, old, new))
+
         unsafe = {
             # R2a の壊し方（関門の手順）
             'commented': CANONICAL.replace('          python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py',
                                            '          # python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py'),
-            'if false': replace_once(CANONICAL, '          ' + gate_body, '          if false; then\n          ' + gate_body),
-            '&& false': replace_once(CANONICAL, '          ' + gate_body, '          false && \\\n          ' + gate_body),
-            'exit 0 in the gate': replace_once(CANONICAL, '          ' + gate_body, '          exit 0\n          ' + gate_body),
-            '|| true in the gate': replace_once(CANONICAL, '"${GATE}/required-published"\n', '"${GATE}/required-published" || true\n'),
-            'another tag': replace_once(CANONICAL, 'RELEASE_TAG: ${{ github.ref_name }}\n        run: |\n          GATE=',
-                                        'RELEASE_TAG: v5.2.0\n        run: |\n          GATE='),
+            'if false': in_step(first_gate, '          ' + gate_body, '          if false; then\n          ' + gate_body),
+            '&& false': in_step(first_gate, '          ' + gate_body, '          false && \\\n          ' + gate_body),
+            'exit 0 in the gate': in_step(first_gate, '          ' + gate_body, '          exit 0\n          ' + gate_body),
+            '|| true in the gate': in_step(first_gate, '"${GATE}/required-published"',
+                                           '"${GATE}/required-published" || true'),
+            'another tag': in_step(first_gate, 'RELEASE_TAG: ${{ github.ref_name }}\n        run: |\n          GATE=',
+                                   'RELEASE_TAG: v5.2.0\n        run: |\n          GATE='),
+            # 2つ目の関門も同じように壊せない（#925）
+            'exit 0 in the second gate': in_step(second_gate, '          ' + gate_body, '          exit 0\n          ' + gate_body),
+            '|| true in the second gate': in_step(second_gate, '"${GATE}/required-published"',
+                                                  '"${GATE}/required-published" || true'),
+            'second gate without if': in_step(second_gate, f'        if: {UPLOAD_IF}\n', ''),
+            'no second gate': CANONICAL.replace(second_gate, ''),
+            'second gate reuses the inputs': in_step(second_gate, 'GATE="${RUNNER_TEMP}/release-gate-again"',
+                                                     'GATE="${RUNNER_TEMP}/release-gate"'),
             'gate if': replace_once(CANONICAL, '        id: release_gate\n', '        id: release_gate\n        if: false\n'),
             'continue-on-error': replace_once(CANONICAL, '        id: release_gate\n',
                                               '        id: release_gate\n        continue-on-error: true\n'),
             'gate shell': replace_once(CANONICAL, '        id: release_gate\n', '        id: release_gate\n        shell: sh {0}\n'),
-            'other id': replace_once(CANONICAL, 'id: release_gate', 'id: other'),
+            'other id': replace_once(CANONICAL, 'id: release_gate\n', 'id: other\n'),
             # 部分レビュー F1 の a〜e
             'a: precheck before the gate': move_step(CANONICAL, 'precheck', 'release_gate'),
             'b: upload without if': replace_once(CANONICAL, upload_if, '        id: upload\n'),
@@ -128,9 +144,11 @@ class CanonicalJudgeTest(unittest.TestCase):
                                                       '    permissions:\n      contents: write\n',
                                                       '    needs: release\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n'),
             'job renamed': replace_once(CANONICAL, 'name: Publish to Maven Central', 'name: Publish'),
-            'checkout ref': replace_once(CANONICAL, '          fetch-depth: 0\n          persist-credentials: false\n      - name: Set up Python',
-                                         '          fetch-depth: 0\n          persist-credentials: false\n          ref: main\n'
-                                         '      - name: Set up Python'),
+            # release ジョブの checkout（github-release のジョブも Python を入れるので、関門の手前まで含めて名指しする）
+            'checkout ref': replace_once(CANONICAL, '          persist-credentials: false\n      - name: Set up Python\n'
+                                         '        uses: actions/setup-python@v7\n        with:\n          python-version: "3.15"\n      # 関門',
+                                         '          persist-credentials: false\n          ref: main\n      - name: Set up Python\n'
+                                         '        uses: actions/setup-python@v7\n        with:\n          python-version: "3.15"\n      # 関門'),
             'no concurrency': replace_once(CANONICAL, '    concurrency:\n      group: release-publish\n      cancel-in-progress: false\n', ''),
             'two gates': replace_once(CANONICAL, step(CANONICAL, 'release_gate'), step(CANONICAL, 'release_gate') * 2),
         }
@@ -156,7 +174,8 @@ class CanonicalShapeTest(unittest.TestCase):
 
     def test_step_order_and_conditions(self):
         self.assertEqual([item['id'] for item in self.steps], STEP_IDS)
-        expected_if = {'bundle': UPLOAD_IF, 'upload': UPLOAD_IF, 'deployment': UPLOAD_IF, 'record': RECORD_IF}
+        expected_if = {'bundle': UPLOAD_IF, 'release_gate_again': UPLOAD_IF, 'upload': UPLOAD_IF, 'deployment': UPLOAD_IF,
+                       'record': RECORD_IF}
         for item in self.steps:
             with self.subTest(item['name']):
                 self.assertEqual(item['if'], expected_if.get(item['id']))
@@ -164,6 +183,16 @@ class CanonicalShapeTest(unittest.TestCase):
             self.assertIn(f'\n    needs: release\n    if: {PUBLISHED_IF}\n', job(CANONICAL, name))
         self.assertIn('\n    outputs:\n      action: ${{ steps.precheck.outputs.action }}\n'
                       '      state: ${{ steps.deployment.outputs.state }}\n', job(CANONICAL, 'release'))
+
+    def test_the_gate_runs_again_right_before_the_upload(self):
+        # bundle を作るあいだに増えたタグで止める。入力は別のディレクトリに集める（#925。scala#934 の指摘）
+        ids = [item['id'] for item in self.steps]
+        self.assertEqual(ids.index('release_gate_again') + 1, ids.index('upload'))
+        again = step(CANONICAL, 'release_gate_again')
+        body = again[again.index('        env:\n'):].split('\n      # ', 1)[0].rstrip('\n')
+        expected = GATE_STEP[GATE_STEP.index('        env:\n'):].replace(
+            'GATE="${RUNNER_TEMP}/release-gate"', 'GATE="${RUNNER_TEMP}/release-gate-again"')
+        self.assertEqual(body, expected)
 
     def test_the_gate_step_is_the_fixed_one(self):
         gate = step(CANONICAL, 'release_gate')

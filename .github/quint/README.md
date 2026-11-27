@@ -20,7 +20,16 @@ This repository is event-store-adapter-kotlin. The model is the one of j5ik2o/ev
 
 `kotlin`, `kotlinNoManual` and `kotlinReleasesOnly` are expected to have no violation; `kotlinNoRequired` drops the setting and breaks I6b (`legacyBeforeNewer`: a newer version is published before 5.2.0). `kotlinPathsTest` runs the fixed paths: newer versions wait for 5.2.0 (`legacyFirstTest`), a `FAILED` 5.2.0 re-run (`legacyFailedTest`), 5.2.0 `PUBLISHED` but not yet on repo1 (`legacyVisibleLaterTest`), and two releases after 5.2.0 (`legacyThenTwoReleasesTest`).
 
-Invariants are `safety` (I1 to I11, with I8b `untaggedReleaseRecoverable`). Instances whose names describe a missing safeguard (`stepRecordDropped`, `unknownIgnored`, `noneSkipsQuery`, `cancelledLeftAlone` and others) are expected to violate an invariant.
+Invariants are `safety` (I1 to I11, with I8b `untaggedReleaseRecoverable`, I6c `requiredVisibleBeforeNewer` and I8c `publishedReleaseRecoverable`). Instances whose names describe a missing safeguard (`stepRecordDropped`, `unknownIgnored`, `noneSkipsQuery`, `cancelledLeftAlone` and others) are expected to violate an invariant.
+
+The model files are those of j5ik2o/event-store-adapter-scala at `48e4256` (review on scala#934), taken over in #925. They change the model of `780eb20` as follows, all checked against `release.yml` of this repository; the kotlin instances keep their constants:
+
+- `jobOk`: the release job ended with success, because its wait step read `PUBLISHED` (`confirmPoll`) or its precheck read the deployment as published (`resumePublishJob`, a run or re-run that uploads nothing). `githubRelease` needs it, as the `github-release` job needs the outputs of the release job. A job that fails after the upload, or whose wait times out while the deployment is still processing, leaves no confirm and no release: the recovery is to re-run the release job. `rerunConfirm` is only for the repo1 timeout of the `Check Maven Central` job. `supplyId` no longer starts the confirm by itself.
+- I6c `requiredVisibleBeforeNewer`: a version newer than 5.2.0 is in flight or published only when 5.2.0 is visible on repo1, not only `PUBLISHED` in the Portal. I6b alone does not catch a gate that reads the Portal state (changing `requiredPublished` to read `published` violates I6c in the kotlin instances, not I6b).
+- I8c `publishedReleaseRecoverable`: a published latest version without a GitHub release can still get one by the documented steps.
+- `noLatestTagCheck` drops the latest-tag check of the model's single publish action, which stands for both the publish gate and the precheck (the model decides and uploads in one step). It shows that a latest-tag check right before the upload is needed; `release.yml` makes it three times (the gate, the precheck after its wait, and the gate again right before the upload). A short window stays after the last check, but the publish jobs run one at a time in the `release-publish` group, so a newer version is not published first.
+
+Outside the model, checked by the tests in `.github/tests/`: the deadline of the precheck, the wait and the check of repo1 (a timeout that can come before the attempt limit; its recovery is the re-run of `publishFailed`), the whole diff of the version pull request, the release-note base and the Latest release, the artifact records with an early expiry, and repo1 serving only some POMs.
 
 ## Running
 
@@ -30,5 +39,7 @@ bash .github/quint/run-quint.sh full 3000   # every instance; run it locally whe
 ```
 
 The script uses `quint` from `PATH`, or the command in `QUINT` (CI uses `npx --yes @informalsystems/quint@0.32.0`).
+
+quint fetches its Rust evaluator (`evaluator/v0.6.0`) from the GitHub API without authentication when `$QUINT_HOME/rust-evaluator-v0.6.0/quint_evaluator` is missing (`QUINT_HOME` defaults to `~/.quint`). That API allows 60 requests an hour per IP, which shared runners often have used up. CI therefore runs `fetch-evaluator.sh` first: it downloads the evaluator with `gh` and the job's token, checks its SHA-256, and puts it in `$QUINT_HOME` (taken from j5ik2o/event-store-adapter-rs#375).
 
 When `central-rules.py` changes what it decides, change the model first, then the code.

@@ -12,9 +12,9 @@ read -r -a Q <<< "${QUINT:-quint}"
 mode="${1:-ci}"
 SEED=7
 STEPS=30
-POSITIVE_ALL=(java javaReleasesOnly kotlin kotlinNoManual kotlinReleasesOnly scala rs go javaR2aOnly scalaBeforeR5 javaR2b javaR2bReleasesOnly)
+POSITIVE_ALL=(java javaReleasesOnly kotlin kotlinNoManual kotlinReleasesOnly scala scalaNoManual scalaReleasesOnly rs go javaR2aOnly scalaBeforeR5 javaR2b javaR2bReleasesOnly)
 # 前提を外すと破れることを示す instance と、破れる不変条件
-NEGATIVE_ALL=(kotlinNoRequired:legacyBeforeNewer goManualTags:publishedOnlyFromReleasePR
+NEGATIVE_ALL=(kotlinNoRequired:legacyBeforeNewer scalaNoRequired:legacyBeforeNewer goManualTags:publishedOnlyFromReleasePR
   jsBefore1161:neverTimesOutAfterPublished wholeRerun:noDuplicatePublish noDeploymentCheck:noDuplicatePublish
   javaR2aPushesTags:noDuplicatePublish scalaOldBumpLive:legacyBeforeNewer noOtherDeploymentCheck:publishedMonotonic
   stepRecordDropped:noDuplicatePublish unknownIgnored:noDuplicatePublish noneSkipsQuery:noDuplicatePublish
@@ -23,7 +23,7 @@ NEGATIVE_ALL=(kotlinNoRequired:legacyBeforeNewer goManualTags:publishedOnlyFromR
 POSITIVE_CI=(kotlin kotlinNoManual kotlinReleasesOnly)
 NEGATIVE_CI=(kotlinNoRequired:legacyBeforeNewer stepRecordDropped:noDuplicatePublish unknownIgnored:noDuplicatePublish noneSkipsQuery:noDuplicatePublish
   noLatestTagCheck:publishedMonotonic cancelledLeftAlone:stopsAreRecoverable)
-TESTS=(javaPathsTest kotlinPathsTest javaR2aOnlyTest javaR2bPathsTest confirmBoundaryTest tagRecoveryTest)
+TESTS=(javaPathsTest kotlinPathsTest scalaPathsTest javaR2aOnlyTest javaR2bPathsTest confirmBoundaryTest tagRecoveryTest)
 
 if [[ "$mode" == ci ]]; then
   samples=500

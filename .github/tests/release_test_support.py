@@ -72,8 +72,44 @@ def outputs(path):
     return dict(line.split('=', 1) for line in path.read_text().splitlines() if line)
 
 
-def pull(sha, ref='release/v5.3.0', repo=REPOSITORY, merged=True, base='main'):
-    return {
-        'number': 1, 'merged_at': '2026-11-25T00:00:00Z' if merged else None,
-        'merge_commit_sha': sha, 'base': {'ref': base}, 'head': {'ref': ref, 'repo': {'full_name': repo}},
+def pull(sha, ref='release/v5.3.0', repo=REPOSITORY, merged=True, base='main', number=1, head_sha=None,
+         whole_diff='default'):
+    """GET pulls/<番号> の応答の形に、release-gate-inputs.sh が git で足す whole_diff（全体の差分）を加えたもの。
+    whole_diff の既定は、5.2.1-SNAPSHOT から ref の版（release/vX.Y.Z）へ版だけを替える差分。None なら付けない（#925）。"""
+    if whole_diff == 'default':
+        after = ref.removeprefix('release/v') if ref.startswith('release/v') else '5.3.0'
+        whole_diff = {'files': [VERSION_FILE], 'before': '5.2.1-SNAPSHOT\n', 'after': after + '\n'}
+    value = {
+        'number': number, 'merged_at': '2026-11-25T00:00:00Z' if merged else None,
+        'merge_commit_sha': sha, 'base': {'ref': base},
+        'head': {'ref': ref, 'sha': head_sha or 'f' * 40, 'repo': {'full_name': repo}},
     }
+    if whole_diff is not None:
+        value['whole_diff'] = whole_diff
+    return value
+
+
+def pull_head(git, work, merged, number=1, commits=None):
+    """merged（main に入った squash のコミット）の PR の head を作り、origin の refs/pull/<番号>/head に push する。
+    git は git(cwd, *args) の形の関数。既定は、merged の親から merged と同じ木を持つ1つのコミット（squash の前の版上げの
+    ブランチ）。commits を渡すと、merged の親から {ファイル: 中身か None（消す）} を順に積んだコミットを head にする。
+    head の SHA を返す。"""
+    parent = git(work, 'rev-parse', f'{merged}^')
+    if commits is None:
+        tree = git(work, 'rev-parse', f'{merged}^{{tree}}')
+        head = git(work, 'commit-tree', tree, '-p', parent, '-m', 'the version branch')
+    else:
+        current = git(work, 'rev-parse', 'HEAD')
+        git(work, 'checkout', '-q', '--detach', parent)
+        for files in commits:
+            for name, text in files.items():
+                if text is None:
+                    (work / name).unlink()
+                else:
+                    (work / name).write_text(text)
+            git(work, 'add', '-A')
+            git(work, 'commit', '-q', '--allow-empty', '-m', 'a pull request commit')
+        head = git(work, 'rev-parse', 'HEAD')
+        git(work, 'checkout', '-q', current)
+    git(work, 'push', '-q', 'origin', f'+{head}:refs/pull/{number}/head')
+    return head

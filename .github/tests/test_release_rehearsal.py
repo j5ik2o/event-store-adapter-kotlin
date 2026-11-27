@@ -10,20 +10,47 @@ from central_portal_support import Stub
 from release_test_support import BUMP, GITHUB, LOOPBACK, REPOSITORY, VERSION_FILE, outputs, pull, run_body, serve_required
 from test_release_workflow_shape import GATE_STEP
 
-FAKE_GH = '''#!/bin/sh
-# 偽の gh。api は FAKE_GH_FAIL 回だけ失敗し、続く FAKE_GH_EMPTY 回は [] を返し、その後に $FAKE_PULLS を返す。
-calls=$(cat "$FAKE_GH_CALLS" 2>/dev/null || echo 0)
-calls=$((calls + 1))
-echo "$calls" > "$FAKE_GH_CALLS"
-if [ "$calls" -le "${FAKE_GH_FAIL:-0}" ]; then
-  echo "HTTP 502" >&2
-  exit 1
-fi
-if [ "$calls" -le $(( ${FAKE_GH_FAIL:-0} + ${FAKE_GH_EMPTY:-0} )) ]; then
-  echo '[]'
-  exit 0
-fi
-cat "$FAKE_PULLS"
+FAKE_GH = '''#!/usr/bin/env python3
+# 偽の gh。照会の道ごとに返す（#925）。
+# commits/<sha>/pulls：FAKE_GH_FAIL 回だけ失敗し、続く FAKE_GH_EMPTY 回は [] を返し、その後に $FAKE_PULLS を返す
+#   （回数は FAKE_GH_CALLS に数える。この道だけを数える）。
+# pulls/<番号>：$FAKE_PULLS の同じ番号の項目。FAKE_GH_PULL_FAIL があれば失敗する。
+# releases：$FAKE_RELEASES（1行に1つのタグ）。FAKE_RELEASES_FAIL があれば失敗する。release create・edit は FAKE_LOG に書く。
+import json, os, re, sys
+args = sys.argv[1:]
+path = next((arg for arg in args[1:] if arg.startswith('repos/')), '')
+if os.environ.get('FAKE_LOG'):
+    with open(os.environ['FAKE_LOG'], 'a') as log:
+        log.write(json.dumps(args) + '\\n')
+if args[:1] == ['api'] and path.endswith('/pulls'):
+    calls_file = os.environ['FAKE_GH_CALLS']
+    calls = int(open(calls_file).read()) if os.path.exists(calls_file) else 0
+    calls += 1
+    open(calls_file, 'w').write(str(calls))
+    fail, empty = int(os.environ.get('FAKE_GH_FAIL', '0')), int(os.environ.get('FAKE_GH_EMPTY', '0'))
+    if calls <= fail:
+        sys.exit('HTTP 502')
+    print('[]' if calls <= fail + empty else open(os.environ['FAKE_PULLS']).read())
+elif args[:1] == ['api'] and re.search(r'/pulls/[0-9]+$', path):
+    if os.environ.get('FAKE_GH_PULL_FAIL'):
+        sys.exit('HTTP 502')
+    number = int(path.rsplit('/', 1)[1])
+    print(json.dumps(next(p for p in json.load(open(os.environ['FAKE_PULLS'])) if p['number'] == number)))
+elif args[:1] == ['api'] and path.endswith('/releases'):
+    if os.environ.get('FAKE_RELEASES_FAIL'):
+        sys.exit('HTTP 502')
+    tags = [line for line in open(os.environ['FAKE_RELEASES']).read().splitlines() if line]
+    drafts = set(filter(None, os.environ.get('FAKE_DRAFTS', '').split()))
+    if '.[] | select(.draft | not) | .tag_name' in args:
+        tags = [tag for tag in tags if tag not in drafts]
+    print('\\n'.join(tags))
+elif args[:2] == ['release', 'create']:
+    with open(os.environ['FAKE_RELEASES'], 'a') as releases:
+        releases.write(args[2] + '\\n')
+elif args[:2] == ['release', 'edit']:
+    pass
+else:
+    sys.exit('unexpected gh call: ' + ' '.join(args))
 '''
 
 
@@ -118,7 +145,10 @@ class ReleaseRehearsalTest(unittest.TestCase):
         self.git(merged, 'commit', '-m', 'version up to v5.3.0 (#1)')
         self.git(merged, 'push', 'origin', 'main')
         sha = self.git(merged, 'rev-parse', 'HEAD')
-        self.pulls.write_text(json.dumps([pull(sha, ref=ref)]))
+        # GitHub は PR の head を refs/pull/<番号>/head に置く。関門は PR 全体の差分をそこから求める（#925）
+        head = self.remote_ref(ref)
+        self.git(self.remote, 'update-ref', 'refs/pull/1/head', head)
+        self.pulls.write_text(json.dumps([pull(sha, ref=ref, head_sha=head)]))
         return sha
 
     def trigger(self, sha, **env):
@@ -363,6 +393,73 @@ class ReleaseRehearsalTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('could not read the pull requests', result.stdout)
         self.assertEqual(out, {})
+
+    def pull_request(self, commits, number=1):
+        """main の先端から commits（{ファイル: 中身}）を積んだ PR の head を作り、release/v5.3.0 と refs/pull/<番号>/head に
+        push する。head の SHA を返す。"""
+        work = self.clone()
+        self.git(work, 'switch', '-q', '-c', 'release/v5.3.0')
+        for files in commits:
+            for name, text in files.items():
+                (work / name).write_text(text)
+            self.git(work, 'add', '-A')
+            self.git(work, 'commit', '-q', '-m', 'a pull request commit')
+        self.git(work, 'push', '-q', 'origin', 'release/v5.3.0', 'HEAD:refs/pull/%d/head' % number)
+        return self.git(work, 'rev-parse', 'HEAD')
+
+    def test_a_change_undone_inside_the_pull_request_is_not_in_its_whole_diff(self):
+        # 途中のコミットでほかのファイルを変えても、最後に戻せば PR の全体の差分は version だけ（#925）
+        head = self.pull_request([{'feature.txt': 'tmp\n'}, {'feature.txt': 'x\n', VERSION_FILE: '5.3.0\n'}])
+        after = self.squash_merge()
+        self.assertEqual(self.remote_ref('refs/pull/1/head'), head)
+        result, out = self.trigger(after)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(out['tag'], 'v5.3.0')
+
+    def test_a_rebase_merge_that_changes_code_before_the_version_is_not_tagged(self):
+        # rebase のマージ：最後のコミットは version だけで親も1つだが、PR の全体は feature.txt も変える（#925。rs#375 の指摘）
+        head = self.pull_request([{'feature.txt': 'y\n'}, {VERSION_FILE: '5.3.0\n'}])
+        merged = self.clone()
+        for commit in (f'{head}^', head):
+            self.git(merged, 'cherry-pick', commit)
+            self.git(merged, 'commit', '-q', '--amend', '-m', 'a pull request commit (#1)')
+        self.git(merged, 'push', '-q', 'origin', 'main')
+        sha = self.git(merged, 'rev-parse', 'HEAD')
+        self.assertEqual(self.git(merged, 'diff', '--name-only', f'{sha}^', sha), VERSION_FILE)
+        self.pulls.write_text(json.dumps([pull(sha, head_sha=head)]))
+        result, out = self.trigger(sha)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('the pull request #1 as a whole must change only the version in version to 5.3.0', result.stderr)
+        self.assertEqual(out, {})
+
+    def test_a_head_that_github_and_git_disagree_on_is_not_tagged(self):
+        # API の head と refs/pull/<番号>/head が違う（force-push の直後など）：差分を書かず、関門が拒否する
+        after = self.merged_release()
+        self.pulls.write_text(json.dumps([pull(after, head_sha='e' * 40)]))
+        result, out = self.trigger(after)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('could not read the head', result.stdout)
+        self.assertIn('as a whole must change only the version', result.stderr)
+        self.assertEqual(out, {})
+
+    def test_a_whole_diff_in_the_api_answer_is_not_trusted(self):
+        # API の応答に whole_diff があっても捨て、git で求めたものだけを使う。refs/pull が無ければ拒否
+        after = self.merged_release()
+        self.git(self.remote, 'update-ref', '-d', 'refs/pull/1/head')
+        self.pulls.write_text(json.dumps([pull(after, head_sha=self.remote_ref('release/v5.3.0'))]))
+        self.assertIn('whole_diff', self.pulls.read_text())
+        result, out = self.trigger(after)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('as a whole must change only the version', result.stderr)
+        self.assertEqual(out, {})
+
+    def test_a_pull_request_that_cannot_be_read_again_stops_without_a_tag(self):
+        # PR を1つずつ読み直せなければ落ちる（再実行で読み直す）。一覧は読めている
+        after = self.merged_release()
+        result, out = self.trigger(after, FAKE_GH_PULL_FAIL='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(out, {})
+        self.assertEqual((self.directory / 'gh-calls').read_text().strip(), '1')
 
     def test_push_without_a_version_change_is_not_tagged(self):
         (self.work / 'feature.txt').write_text('z\n')

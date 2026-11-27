@@ -105,9 +105,37 @@ def make_case(parent, current, changed, pulls, entries, on_main, required=None, 
     return Case(candidate, tuple(entries))
 
 
-def pull(sha=SHA, ref='release/v5.3.0', repo=REPOSITORY, merged=True, base='main'):
-    return {'number': 1, 'merged_at': '2026-11-25T00:00:00Z' if merged else None, 'merge_commit_sha': sha,
-            'base': {'ref': base}, 'head': {'ref': ref, 'repo': None if repo is None else {'full_name': repo}}}
+def pull(sha=SHA, ref='release/v5.3.0', repo=REPOSITORY, merged=True, base='main', whole_diff='default'):
+    """whole_diff の既定は、5.2.1-SNAPSHOT から ref の版へ版だけを替える PR の全体の差分（None なら付けない）。"""
+    if whole_diff == 'default':
+        after = ref.removeprefix('release/v') if ref.startswith('release/v') else '5.3.0'
+        whole_diff = {'files': [VERSION_FILE], 'before': '5.2.1-SNAPSHOT\n', 'after': after + '\n'}
+    value = {'number': 1, 'merged_at': '2026-11-25T00:00:00Z' if merged else None, 'merge_commit_sha': sha,
+             'base': {'ref': base}, 'head': {'ref': ref, 'repo': None if repo is None else {'full_name': repo}}}
+    if whole_diff is not None:
+        value['whole_diff'] = whole_diff
+    return value
+
+
+def whole_ok(diff, after):
+    """PR の全体の差分が、`version` の版を after に替えることだけか（関門と別に書いた規則。#925）。
+    ファイルは version だけ、前は版のファイルとして正しく、後ろは after、前と後ろで版が違い、改行の有無は前のまま。"""
+    if not isinstance(diff, dict) or diff.get('files') != [VERSION_FILE]:
+        return False
+    before, after_text = diff.get('before'), diff.get('after')
+    if not isinstance(before, str) or not isinstance(after_text, str):
+        return False
+    newline = '\n' if before.endswith('\n') else ''
+    body = before[:-1] if newline else before
+    return accepted(body) and body != after and after_text == after + newline
+
+
+whole_diffs = st.one_of(st.none(), st.builds(
+    lambda files, before, after: {'files': files, 'before': before, 'after': after},
+    st.sampled_from([[VERSION_FILE], [VERSION_FILE], [VERSION_FILE, 'build.gradle.kts'], ['build.gradle.kts'], [],
+                     ['build.gradle.kts', VERSION_FILE]]),
+    st.one_of(st.none(), version_file(st.sampled_from(['5.2.1-SNAPSHOT', '5.2.0', '5.3.0', '5.x']))),
+    st.one_of(st.none(), version_file(st.sampled_from(['5.3.0', '5.3.1', '5.2.1-SNAPSHOT'])))))
 
 
 @st.composite
@@ -118,12 +146,16 @@ def near_valid_cases(draw):
     parent = draw(st.sampled_from([f'{target}-SNAPSHOT', f'{major - 1}.9.9', f'{target}-rc.1'])) + '\n'
     current = target + '\n'
     changed = [VERSION_FILE]
-    pulls = [pull(ref=f'release/v{target}')]
+    whole = {'files': [VERSION_FILE], 'before': parent, 'after': current}
+    pulls = [pull(ref=f'release/v{target}', whole_diff=whole)]
     entries = [(f'v{major - 1}.0.0', 'b' * 40, draw(st.booleans())), ('v0.1.0', 'c' * 40, draw(st.booleans()))]
     on_main, required, parents = True, None, 1
-    for change in draw(st.lists(st.sampled_from(range(17)), max_size=3)):
+    for change in draw(st.lists(st.sampled_from(range(18)), max_size=3)):
         if change == 0:
             on_main = False
+        elif change == 17:
+            # rebase のマージ：最後のコミットは版だけでも、PR の全体はほかも変える・読めない（#925）
+            pulls = [pull(ref=f'release/v{target}', whole_diff=draw(whole_diffs))]
         elif change == 16:
             parents = draw(st.sampled_from([0, 2, 3]))
         elif change == 1:
@@ -131,7 +163,7 @@ def near_valid_cases(draw):
         elif change == 2:
             current = target
         elif change == 3:
-            pulls = pulls + [pull(ref=f'release/v{target}')]
+            pulls = pulls + [pull(ref=f'release/v{target}', whole_diff=whole)]
         elif change == 4:
             pulls = [pull(ref=f'release/v{target}', repo=draw(st.sampled_from(['someone/r', None])))]
         elif change == 5:
@@ -176,7 +208,8 @@ def random_cases(draw):
         sha=st.sampled_from((SHA,) + OTHER_SHAS),
         ref=st.sampled_from([f'release/v{target}', 'release/v5.3.0', 'feature/x', f'release/V{target}']),
         repo=st.sampled_from([REPOSITORY, 'someone/r', None]),
-        merged=st.booleans(), base=st.sampled_from(['main', 'main', 'develop'])), max_size=3))
+        merged=st.booleans(), base=st.sampled_from(['main', 'main', 'develop']),
+        whole_diff=st.one_of(st.just('default'), whole_diffs)), max_size=3))
     names = st.one_of(release_versions.map('v'.__add__), versions.map('v'.__add__),
                       st.sampled_from(['V5.2.0', 'v05.2.0', 'v5.2.0', 'release', f'v{target}']))
     tags = draw(st.dictionaries(names, st.tuples(st.sampled_from((SHA,) + OTHER_SHAS), st.booleans()), max_size=4))
@@ -269,6 +302,7 @@ class ReleaseGatePropertiesTest(unittest.TestCase):
                       and p['head']['ref'] == 'release/v' + after and p['head']['repo'] is not None
                       and p['head']['repo']['full_name'] == REPOSITORY]
             self.assertEqual(len(merges), 1)
+            self.assertTrue(whole_ok(merges[0].get('whole_diff'), after), merges[0].get('whole_diff'))
             for name in case.truth:
                 if stable(name) and name != result[1]:
                     self.assertTrue(greater(after, name[1:]), name)
@@ -279,6 +313,28 @@ class ReleaseGatePropertiesTest(unittest.TestCase):
 
         prop()
         self.assertGreater(len(returned), 0)
+
+    def test_p17_the_whole_pull_request_decides_like_the_commit(self):
+        """P17（#925）：ほかが通る事実で、マージ元の PR の全体の差分だけを替えると、通る ⇔ whole_ok。
+        5.2.0 を待つ（required が出ていない）ときは、全体の差分に依らず拒否し、文も今までどおり。"""
+        @SETTINGS
+        @given(whole_diffs, st.sampled_from(['tag', 'publish']), st.booleans())
+        def prop(diff, mode, waiting):
+            required = gate.Required('5.2.0', False) if waiting else None
+            case = make_case('5.2.1-SNAPSHOT\n', '5.3.0\n', [VERSION_FILE], [pull(whole_diff=diff)],
+                             [('v5.2.0', 'c' * 40, True)] + ([('v5.3.0', SHA, False)] if mode == 'publish' else []),
+                             True, required)
+            try:
+                result = ('tag', gate.check_candidate(mode, case.candidate, 'v5.3.0'))
+            except gate.GateError as error:
+                result = ('error', str(error))
+            if waiting:
+                self.assertEqual(result[0], 'error')
+                self.assertIn('must wait until 5.2.0', result[1])
+            else:
+                self.assertEqual(result == ('tag', 'v5.3.0'), whole_ok(diff, '5.3.0'), (diff, result))
+
+        prop()
 
     def test_p2_publish_passes_only_where_tag_mode_returns_that_tag_and_the_remote_tag_points_at_the_commit(self):
         @SETTINGS

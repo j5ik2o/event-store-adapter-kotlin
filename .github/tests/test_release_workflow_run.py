@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from central_portal_support import Stub, portal
-from release_test_support import GITHUB, RELEASE, REPOSITORY, VERSION_FILE, pull, serve_required
+from release_test_support import GITHUB, RELEASE, REPOSITORY, VERSION_FILE, pull, pull_head, serve_required
 from release_workflow_canonical import release_steps
 from test_release_rehearsal import FAKE_GH
 from workflow_runner import Runner, UnknownExpression, default_environment
@@ -105,7 +105,9 @@ class ReleaseWorkflowRunTest(unittest.TestCase):
         self.git(self.work, 'tag', '-a', tag, '-m', tag)
         self.git(self.work, 'remote', 'add', 'origin', str(self.remote))
         self.git(self.work, 'push', 'origin', 'main', '--tags')
-        self.pulls.write_text(json.dumps([pull(sha, ref=head)]))
+        # PR の head（squash の前の版上げのブランチ。木は squash と同じ）を refs/pull/1/head に置く（#925）
+        head_sha = pull_head(self.git, self.work, sha)
+        self.pulls.write_text(json.dumps([pull(sha, ref=head, head_sha=head_sha)]))
         workspace = self.directory / 'workspace'
         self.git(self.directory, 'clone', str(self.remote), str(workspace))
         self.git(workspace, 'checkout', '-q', tag)
