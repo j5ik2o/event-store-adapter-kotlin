@@ -32,9 +32,21 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(self.decide(facts()), portal.Decision('upload'))
 
     def test_a_version_on_repo1_is_not_uploaded_again(self):
+        # 6 つの POM がすべてあれば公開済み（Portal の記録が見えなくても）
+        self.assertEqual(self.decide(facts(repo1={artifact: 200 for artifact in portal.bundle.ARTIFACTS})).action,
+                         'published')
+        # 一部だけなら、上げ直さず、公開済みとも見ない（Release を作らない。#925）
+        for served in range(1, len(portal.bundle.ARTIFACTS)):
+            with self.subTest(served=served):
+                repo1 = {artifact: 200 if index < served else 404
+                         for index, artifact in enumerate(portal.bundle.ARTIFACTS)}
+                self.assert_stops(facts(repo1=repo1), f'repo1 serves only {served} of the 6 POMs')
+        # PUBLISHED の deployment が分かっていれば、repo1 の一部でも公開済み（先に決まる）
+        recorded = run(jobs=[release_job(1)], artifacts=[record(1, ID_A)])
         repo1 = {artifact: 404 for artifact in portal.bundle.ARTIFACTS}
         repo1['event-store-adapter-kotlin-core'] = 200
-        self.assertEqual(self.decide(facts(repo1=repo1)).action, 'published')
+        self.assertEqual(self.decide(facts([recorded], statuses={ID_A: named('PUBLISHED')}, repo1=repo1)).action,
+                         'published')
 
     def test_a_recorded_deployment_of_an_earlier_attempt_decides(self):
         earlier = run(jobs=[release_job(1), release_job(2, upload='absent', step_pairs=())],
@@ -166,6 +178,47 @@ class DecideTest(unittest.TestCase):
         short = run(jobs=[release_job(1)], artifacts=[portal.Artifact(
             portal.record_name(1, ID_A), False, NOW + timedelta(days=10))])
         self.assert_stops(facts([short]), '90 days')
+        # 止める文は、足す行をそのまま出す
+        self.assert_stops(facts([expired]), f'add {RUN}/1={ID_A} to CENTRAL_DEPLOYMENTS ({RUN}/1=none if the Portal')
+        # 保存期間を戻しても既にある記録の期限は変わらない。変数に同じ ID を書けば、Portal の状態で決める（#925）
+        for record_run in (expired, short):
+            with self.subTest(expired=record_run is expired):
+                kept = facts([record_run], overrides=f'{RUN}/1={ID_A}', statuses={ID_A: named('PUBLISHING')})
+                self.assertEqual(self.decide(kept), portal.Decision('wait', waiting=(ID_A,)))
+                published = facts([record_run], overrides=f'{RUN}/1={ID_A}', statuses={ID_A: named('PUBLISHED')})
+                self.assertEqual(self.decide(published).action, 'published')
+                # 別の ID は食い違いとして止まる
+                self.assert_stops(facts([record_run], overrides=f'{RUN}/1={ID_B}'))
+                # Portal から消えた deployment（ABSENT）の記録が残る：ID の行は「見つからない」で止まり、=none で先へ進める。
+                # =none でも記録の ID を照会するので、Portal がまだ知っていれば食い違いで止まる（java#871 の Devin の指摘）
+                dropped = {ID_A: portal.Status(portal.ABSENT)}
+                self.assert_stops(facts([record_run], overrides=f'{RUN}/1={ID_A}', statuses=dropped),
+                                  f'add {RUN}/1=none')
+                self.assertEqual(self.decide(facts([record_run], overrides=f'{RUN}/1=none', statuses=dropped)).action,
+                                 'upload')
+                self.assert_stops(facts([record_run], overrides=f'{RUN}/1=none', statuses={ID_A: named('PUBLISHED')}),
+                                  'has no deployment, but')
+
+    def test_a_deleted_record_is_not_covered_by_a_checked_tag(self):
+        # run は残り、試みの ID の artifact だけが消えた：tag/vX.Y.Z=checked では通らず、試みの行が要る（CONTRIBUTING の表）
+        uploaded = run(jobs=[release_job(1)], artifacts=())
+        self.assert_stops(facts([uploaded], overrides='tag/v5.3.0=checked'), f'{RUN}/1=<deployment ID|none>')
+        self.assertEqual(self.decide(facts([uploaded], overrides=f'{RUN}/1=none', statuses={})).action, 'upload')
+        # run そのものが無いタグ（v5.4.0）は、tag/vX.Y.Z=checked で、その確かめを通る（このあとは最新のタグの確かめで止まる）
+        self.assert_stops(facts(tags=('v5.2.0', 'v5.3.0', 'v5.4.0')), 'tag v5.4.0 has no Release run')
+        self.assert_stops(facts(tags=('v5.2.0', 'v5.3.0', 'v5.4.0'), overrides='tag/v5.4.0=checked'),
+                          'is not the latest release tag')
+
+    def test_the_gate_again_before_the_upload_counts_as_not_uploaded(self):
+        # upload の直前の関門で落ちた・取り消された試みは、upload が一覧に無くても「上げていない」と読む（#925）
+        for conclusion in ('failure', 'cancelled'):
+            with self.subTest(conclusion=conclusion):
+                pairs = [(name, 'success') for name in ('Set up job', 'Check the tagged commit against the release gate',
+                                                         'Check Maven Central before publishing', 'Build the bundle')]
+                pairs.append(('Check the release gate again before the upload', conclusion))
+                job = release_job(1, step_pairs=pairs)
+                self.assertFalse(portal.may_have_uploaded(job))
+                self.assertEqual(self.decide(facts([run(jobs=[job])])).action, 'upload')
 
     def test_the_window_and_the_boundary(self):
         old = run(age=81, jobs=[release_job(1)])

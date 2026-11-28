@@ -93,6 +93,24 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           bash "${GITHUB_WORKSPACE}"/.github/central-bundle.sh "${RELEASE_TAG#v}" "${RUNNER_TEMP}/central-bundle.zip"
+      # 関門をもう一度。bundle を作るあいだに新しいタグが増えていたら上げない（#925。scala#934 の指摘）。
+      # 入力は新しいディレクトリに集める（前の照会の結果を使い回さない）。5.2.0 が repo1 にあるかも読み直す
+      - name: Check the release gate again before the upload
+        id: release_gate_again
+        if: steps.precheck.outputs.action == 'upload'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          GATE="${RUNNER_TEMP}/release-gate-again"
+          RELEASE_SHA=$(git rev-parse "${RELEASE_TAG}^{commit}")
+          bash "${GITHUB_WORKSPACE}"/.github/release-gate-inputs.sh "$RELEASE_SHA" "$GATE"
+          python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py check --mode publish --tag "$RELEASE_TAG" \
+            --repository "$GITHUB_REPOSITORY" --sha "$RELEASE_SHA" --on-main "$(cat "${GATE}/on-main")" \
+            --parents "${GATE}/parents" \
+            --parent-version "${GATE}/parent-version" --version-file "${GATE}/version" \
+            --changed-files "${GATE}/changed-files" --pulls "${GATE}/pulls.json" \
+            --remote-tags "${GATE}/remote-tags" --required-published "${GATE}/required-published"
       - name: Upload the bundle to Maven Central
         id: upload
         if: steps.precheck.outputs.action == 'upload'
@@ -135,25 +153,72 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
       - name: Create the GitHub release
+        id: github_release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -o pipefail
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          # リリースの一覧は1回で読む。読めなければ止める（照会の失敗を「リリースなし」と見ない。#925）。
+          # 行は `タグ<TAB>下書きかプレリリースか`。下書きとプレリリースは、公開を確かめたリリースに数えない
+          RELEASES=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | "\(.tag_name)\t\(.draft or .prerelease)"')
+          RELEASED=$(awk -F'\t' '$2 == "false" {print $1}' <<< "$RELEASES")
+          if grep -qxF "$RELEASE_TAG" <<< "$RELEASED"; then
             echo "the GitHub release ${RELEASE_TAG} already exists"
+          elif cut -f1 <<< "$RELEASES" | grep -qxF "$RELEASE_TAG"; then
+            # 今のタグのリリースが下書きかプレリリースとしてだけある：作り足さず、省きもしない（java#871 の Devin の指摘）
+            echo "::error::the GitHub release ${RELEASE_TAG} is a draft or a pre-release; publish or delete it, then re-run this job"
+            exit 1
           else
-            PREV_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' "${RELEASE_TAG}^")
+            # 基点は、前にある正式版のタグのうち GitHub のリリースがあるもの（公開を確かめた版）。公開されずに飛んだ
+            # タグの変更も、このリリースのノートに入れる（#925）。見つからなければ直前のタグ
+            PREV_TAG=""
+            CANDIDATES=$(git tag --merged "${RELEASE_TAG}^" --list 'v[0-9]*' --sort=-version:refname)
+            for CANDIDATE in $CANDIDATES; do
+              if [[ "$CANDIDATE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && grep -qxF "$CANDIDATE" <<< "$RELEASED"; then
+                PREV_TAG="$CANDIDATE"
+                break
+              fi
+            done
+            if [[ -z "$PREV_TAG" ]]; then
+              PREV_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' "${RELEASE_TAG}^")
+            fi
+            echo "release notes from ${PREV_TAG}"
             NOTES="${RUNNER_TEMP}/release-notes.md"
             python3 "${GITHUB_WORKSPACE}"/.github/create-release-note-header.py \
               "$SERVER_URL" "$GITHUB_REPOSITORY" "$PREV_TAG" "$RELEASE_TAG" > "$NOTES"
-            git log "${PREV_TAG}..${RELEASE_TAG}" --no-merges --format='%H%x1f%s%x1f%b%x1e' \
-              | python3 "${GITHUB_WORKSPACE}"/.github/create-release-note-body.py "$SERVER_URL" "$GITHUB_REPOSITORY" >> "$NOTES"
+            LOG=$(git log "${PREV_TAG}..${RELEASE_TAG}" --no-merges --format='%H%x1f%s%x1f%b%x1e')
+            printf '%s' "$LOG" | python3 "${GITHUB_WORKSPACE}"/.github/create-release-note-body.py "$SERVER_URL" "$GITHUB_REPOSITORY" >> "$NOTES"
+            # Latest はここでは付けない。次の手順が、一覧を読み直して最大の版を Latest にする
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
-              --title "Release ${RELEASE_TAG}" --notes-file "$NOTES"
+              --title "Release ${RELEASE_TAG}" --notes-file "$NOTES" --latest=false
           fi
+      - name: Mark the greatest release as latest
+        id: latest_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -o pipefail
+          # リリースを作ったあとに一覧を読み直し、その一覧（下書きとプレリリースを除く）と今のタグのうち最大の正式版（vX.Y.Z）を
+          # Latest にする。作った直後の一覧に今のタグがまだ出ないことがあるので、今のタグも候補に入れる（下書きかプレリリース
+          # としてだけ一覧にあれば外す）。最後に動いた実行が、そのとき一覧に見えた最大の版を Latest にする（何度動いても同じ
+          # 結果。#925。rs#375 の形）。保証は、一覧に最大の版が反映されていることが条件：反映が遅れると、あとから動いた旧版の
+          # 実行が旧版を Latest にしうる。そのときは、反映のあとに最大の版を Latest にし直す（CONTRIBUTING）
+          RELEASES=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | "\(.tag_name)\t\(.draft or .prerelease)"')
+          LATEST_TAG=$(printf '%s\n' "$RELEASES" | python3 "${GITHUB_WORKSPACE}"/.github/release-gate.py latest-release --tag "$RELEASE_TAG")
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "::error::no GitHub release of a version vX.Y.Z exists"
+            exit 1
+          fi
+          echo "the greatest release is ${LATEST_TAG}; mark it latest"
+          gh release edit "$LATEST_TAG" --repo "$GITHUB_REPOSITORY" --latest
   confirm:
     name: Check Maven Central
     needs: release

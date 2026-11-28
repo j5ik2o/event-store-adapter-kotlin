@@ -155,7 +155,10 @@ def expected_action(scenario, current):
     if any(attempt.override not in (None, 'none') and attempt.record and attempt.override != attempt.record
            for plan, attempt in own):
         return 'stop', None
-    if any(plan.expiry != 'ok' and any(attempt.record for attempt in plan.attempts) for plan in live):
+    # 期限の短い・切れた記録は、変数に同じ ID の行か =none の行があるときだけ止めない（#925。java#871 の Devin の指摘）
+    if any(plan.expiry != 'ok' and any(attempt.record and attempt.override not in (attempt.record, 'none')
+                                       for attempt in plan.attempts)
+           for plan in live):
         return 'stop', None
     # 2. run の数、タグと run
     if scenario.total > portal.MAX_RUNS:
@@ -190,8 +193,13 @@ def expected_action(scenario, current):
     waiting = {target for _, target, state in seen if state in portal.PROCESSING}
     if waiting:
         return 'wait', waiting
-    if any(tag == f'v{scenario.version}' and state == 'PUBLISHED' for tag, _, state in seen) or 200 in scenario.repo1:
+    if any(tag == f'v{scenario.version}' and state == 'PUBLISHED' for tag, _, state in seen):
         return 'published', None
+    # repo1 は 6 つの POM がすべてそろったときだけ公開済み。一部だけなら止まる（#925）
+    if all(code == 200 for code in scenario.repo1):
+        return 'published', None
+    if 200 in scenario.repo1:
+        return 'stop', None
     if max(scenario.remote_tags, key=lambda tag: tuple(int(part) for part in tag[1:].split('.'))) != \
             f'v{scenario.version}':
         return 'stop', None
@@ -243,10 +251,14 @@ def scenarios(draw):
     checked = frozenset(draw(st.sets(st.sampled_from(TAGS[1:]))))
     statuses = {deployment: (draw(st.sampled_from(STATES)), draw(st.sampled_from((True, True, True, False))))
                 for deployment in POOL}
-    repo1_mode = draw(st.sampled_from(('absent', 'absent', 'absent', 'one', 'all', 'error', 'unreachable')))
+    repo1_mode = draw(st.sampled_from(('absent', 'absent', 'absent', 'one', 'some', 'all', 'error', 'unreachable')))
     repo1 = [404] * len(portal.bundle.ARTIFACTS)
     if repo1_mode == 'one':
         repo1[draw(st.integers(0, len(repo1) - 1))] = 200
+    elif repo1_mode == 'some':
+        # 2〜5 つだけ 200（反映の途中）
+        for index in draw(st.sets(st.integers(0, len(repo1) - 1), min_size=2, max_size=len(repo1) - 1)):
+            repo1[index] = 200
     elif repo1_mode == 'all':
         repo1 = [200] * len(repo1)
     elif repo1_mode == 'error':

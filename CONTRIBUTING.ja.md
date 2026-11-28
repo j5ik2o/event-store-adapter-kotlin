@@ -92,17 +92,17 @@ python3 -m unittest discover -s .github/tests -v
 
 ### リリースの出し方
 
-1. Bump-Version を流します（`rehearsal: false`）。版を決めるときは `version` に書きます。空なら、版を上げる段階で決まります。
+1. Bump-Version を流します（`rehearsal: false`）。版を決めるときは `version` に書きます。空なら、版を上げる段階で決まります。次の版は、最新のタグより大きく、`version` の版よりも大きくなければなりません（`release-gate.py check-next`）。版上げの pull request が版を下げることはありません。
 2. pull request `version up to vX.Y.Z` を確かめます。変えているのが `version` だけで、Check unresolved comments が成功していなければなりません。リリースを出してよいときに、squash でマージします。やめるときは、閉じて枝を消します。
-3. タグのジョブ（`Tag the merged version`）が、マージのコミットを関門で確かめ、`vX.Y.Z` を push します。
+3. タグのジョブ（`Tag the merged version`）が、マージのコミットを関門で確かめ、`vX.Y.Z` を push します。関門は pull request の全体も確かめます。`main` から分かれたところから head までで、変えているのが `version` の版だけでなければなりません。
 4. Release ワークフローが、ジョブ `Publish to Maven Central` を次の順に流します。
    1. タグのコミットを関門で確かめます。
    2. Gradle がタグの版をビルドすることを確かめます。
-   3. Maven Central と前の Release の run を確かめます（`.github/central-portal.py precheck`）。処理中の deployment があれば待ちます（最大 60 分）。版が公開済みならアップロードせずに先へ進み、行方の分からない試みがあれば止まります。
-   4. bundle（180 ファイル。6つの成果物それぞれの jar・sources・javadoc・POM・Gradle の module のファイルと、その署名と4種の checksum）を作り、Central Portal へ上げます（`publishingType=AUTOMATIC`）。
+   3. Maven Central と前の Release の run を確かめます（`.github/central-portal.py precheck`）。処理中の deployment があれば待ちます（最大 60 分。照会と `git ls-remote` の時間も含みます。1つの応答の見出しをとても遅く送るサーバーがあると照会が延びることがあり、ジョブは 150 分で止まります）。版が公開済みならアップロードせずに先へ進み、行方の分からない試みがあれば止まります。
+   4. bundle（180 ファイル。6つの成果物それぞれの jar・sources・javadoc・POM・Gradle の module のファイルと、その署名と4種の checksum）を作り、タグのコミットをもう一度関門で確かめてから（bundle を作るあいだに新しいタグが push されることがあります）、Central Portal へ上げます（`publishingType=AUTOMATIC`）。
    5. deployment の ID を artifact `central-deployment-<試みの番号>-<ID>` に残します（90 日）。
    6. deployment が `PUBLISHED` になるまで待ちます（最大 60 分）。
-5. `PUBLISHED` になったら、`Create the GitHub release` が GitHub のリリースを作り、`Check Maven Central` が、repo1 が6つの POM を返すまで待ちます（最大 60 分）。
+5. `PUBLISHED` になったら、`Create the GitHub release` が GitHub のリリースを作り、`Check Maven Central` が、repo1 が6つの POM を返すまで待ちます（最大 60 分）。リリースノートは、前にある `vX.Y.Z` のタグのうち GitHub のリリースがあるものから書きます。飛んだ版の変更は、次のノートに入ります。リリースは Latest にせずに作り、次の手順 `Mark the greatest release as latest` が、リリースの一覧（下書きとプレリリースを除く）に見える最大の `vX.Y.Z` のリリースを Latest にします。これは、一覧に最大の版がもう反映されていることが条件です。反映が遅れると、あとから動いた旧版のジョブが旧版を Latest にすることがあります。下書きとプレリリースは、リリースノートの基点でも GitHub のリリースに数えません。
 
 予行（`rehearsal: true`）は、`version up to vX.Y.Z (rehearsal, do not merge)` という題の draft の pull request を開きます。マージせずに閉じて、枝を消してください。
 
@@ -149,7 +149,7 @@ ID が無くて事前の確認が止まったときは、そのエラーの文�
 | repo1 で 5.2.0 を読めなかった（`could not read whether 5.2.0 is on Maven Central`） | 関門が失敗する | 失敗したジョブを再実行する |
 | タグが版上げの pull request の squash に付いていない、版と一緒にコードを変えた、版を下げた、タグと版が合わない | 関門の手順が失敗する。ビルドもアップロードもしない | タグを消す。`version` を pull request で直す |
 | Gradle がタグと違う版をビルドする | `Check the version Gradle builds` が失敗する | `version` を pull request で直し、次の版で出す |
-| GitHub・Portal・repo1 への照会が失敗した（5xx、時間切れ） | 事前の確認が止まる | 失敗したジョブを再実行する |
+| GitHub・Portal・repo1 への照会が失敗した（5xx、時間切れ、本文が途中で切れた、本文が締め切りまでに届かない）。関門がコミットの pull request を1つずつ読み直す照会も含む | 事前の確認か、関門の手順が止まる | 失敗したジョブを再実行する |
 | ほかの run の deployment が処理中 | 事前の確認が最大 60 分待ち、時間切れで失敗する | 失敗したジョブを再実行する |
 | アップロードしたかもしれないのに、deployment の ID が無い試みがある（手順の一覧が切れた試み、ジョブの無い run、release ジョブの無い試みを含む） | 事前の確認が止まり、足す行を出す | 試みの job summary やログ、または Portal で名前から ID を探す。出された試みすべてに `<run_id>/<試みの番号>=<ID>` か `=none` を足して再実行する |
 | アップロードが 201 と deployment の ID を返さない | アップロードの手順が失敗する。次の試みは上の行のとおり止まる | 上の行と同じ |
@@ -159,14 +159,21 @@ ID が無くて事前の確認が止まったときは、そのエラーの文�
 | `FAILED` の deployment を Portal で drop した | 事前の確認が止まる（ID が見つからない） | drop したあとに `<run_id>/<試みの番号>=none` を足して再実行する |
 | 60 分たっても deployment が処理中 | 待ちの手順が失敗する | 失敗したジョブを再実行する。事前の確認は同じ deployment を待ち、上げ直さない |
 | 60 分たっても repo1 が版を返さない | `Check Maven Central` が失敗する | `Check Maven Central` だけを再実行する |
-| GitHub のリリースを作れなかった | `Create the GitHub release` が失敗する | `Create the GitHub release` だけを再実行する |
+| GitHub のリリースを作れなかった、または GitHub のリリースの一覧を読めなかった | `Create the GitHub release` が失敗する。読めなかった一覧を「リリースなし」とは読まない | `Create the GitHub release` だけを再実行する |
+| Latest のリリースが最大の版でない（旧版のジョブが一覧を読んだとき、最大の版がまだ一覧に反映されていなかった。または一覧を読んでから直すまでに新しい版のリリースができた） | | 一覧に最大の版が反映されたあとで、最大の版を Latest にし直す：最大の版の `Create the GitHub release` を再実行するか、`gh release edit v<最大の版> --latest` を流す |
+| その版の GitHub のリリースが、下書きかプレリリースとしてだけある | `Create the GitHub release` が失敗する（`is a draft or a pre-release`） | 下書きをふつうのリリースとして公開するか消してから、`Create the GitHub release` だけを再実行する |
 | より新しいタグがある（版が追い越された） | 関門が止まる（`must be greater than the latest tag`）。その版は公開しない | そのまま（飛んだ版）。その版が既に `PUBLISHED` だったとき（待ちが時間切れになり、再実行の前に新しいタグができた）は、[新しいタグの前に公開された版](#新しいタグの前に公開された版)の手順で回復する |
 | 待っていた公開のジョブが、`release-publish` の group にあとから着いたジョブ（ほかのタグの push、ほかの版の再実行）に置き換えられた | その run は始まる前に取り消される。その run は何も公開しない | その版が最新の `vX.Y.Z` のタグなら、取り消された run のジョブをすべて再実行する（取り消されたジョブは、アップロードに数えない）。そうでなければ、再実行しても新しいタグがあるので関門で止まる。前の試みで版が既に公開されていたとき（たとえば GitHub のリリースの作成だけが失敗していた）は、[新しいタグの前に公開された版](#新しいタグの前に公開された版)の手順で回復する。公開されていなければそのまま（飛んだ版） |
 | タグのジョブ（`Tag the merged version`）が、`release-tag` の group にあとから着いたジョブに置き換えられた | その run は取り消される。その版にタグが付かない | その版が最新の `vX.Y.Z` のタグより大きければ、取り消された run を再実行する。あとにほかの pull request がマージされていても同じ（関門は `main` の先頭であることを求めない）。そうでなければそのまま（関門が拒否する） |
 | `CENTRAL_DEPLOYMENTS` の行の形が違う、artifact と違う ID を書いた、Portal が知っている deployment に `none` を書いた | 事前の確認が止まる | 行を直すか消して、再実行する |
-| Release の run や `central-` の artifact を消した。タグの push で Release の run が起きなかった（一度に4つ以上のタグの push、障害） | 事前の確認が止まる（Release の run の無いタグがある） | その版の deployment が処理中でないことを Portal で確かめ、`tag/vX.Y.Z=checked` を足して再実行する。タグは動かさない |
+| Release の run を消した。タグの push で Release の run が起きなかった（一度に4つ以上のタグの push、障害） | 事前の確認が止まる（Release の run の無いタグがある：`tag vX.Y.Z has no Release run`） | その版の deployment が処理中でないことを Portal で確かめ、`tag/vX.Y.Z=checked` を足して再実行する。タグは動かさない |
+| Release の run は残っているが、ある試みの `central-deployment-<試みの番号>-<ID>` の artifact を消した | 事前の確認が止まる：その試みはアップロードしたかもしれないのに deployment の ID が無いとして、足す行を並べる。`tag/vX.Y.Z=checked` はここでは効かない（run の無いタグにだけ効く） | その試みの job summary かログで ID を探すか、Portal で名前 `event-store-adapter-kotlin-<版>-run<run_id>-<試みの番号>` で探す。`<run_id>/<試みの番号>=<ID>` を、Portal にそのような deployment が無ければ `<run_id>/<試みの番号>=none` を足して再実行する |
 | `release.yml` のジョブや手順の名前を変えた | 前の run で、事前の確認が止まる | 変えない。どうしても変えるときは、古い名前も `.github/central-rules.py` に残す |
-| artifact の保存期間を 90 日より短くした | 事前の確認が止まる | 90 日に戻す |
+| artifact の保存期間を 90 日より短くした。記録の期限が切れた | 事前の確認が止まる（`expires before 90 days` か `has expired`） | 新しい記録のために、保存期間を 90 日に戻す。既にある記録の期限は早いままなので、エラーの文が示す行（その記録の ID の `<run_id>/<試みの番号>=<ID>`）を足して再実行する。事前の確認は、その deployment の Portal の状態を今までどおり読む。Portal がその deployment を消していたら、代わりに `<run_id>/<試みの番号>=none` を足す。事前の確認は記録の ID をそれでも照会し、Portal が知らないときだけ先へ進む |
+| その版の `PUBLISHED` の deployment が分からず（deployment の ID が見えない）、repo1 が6つの POM の一部だけを返す（`repo1 serves only N of the 6 POMs`） | 事前の確認が止まる。アップロードも GitHub のリリースの作成もしない。分かっている deployment が `PUBLISHED` なら、ここでは止まらない（公開済みとして進み、`Check Maven Central` が repo1 を待つ） | 公開された deployment が広がっている途中かもしれない。数分おいてジョブを再実行する。変わらなければ Portal で deployment を確かめる |
+| 版上げの pull request の全体が、版のほかも変えている（たとえば pull request の前のコミットがコードを変える）、または head を読めなかった（`as a whole must change only the version`） | タグのジョブか Release ワークフローで関門が失敗する。タグもアップロードもしない | head を読めなかったのなら（ログに `could not read the head`。force push の直後など）、失敗したジョブを再実行する。そうでなければ、pull request で版を戻す |
+| bundle を作るあいだに新しいタグが push された | `Check the release gate again before the upload` が失敗する（`must be greater than the latest tag`）。アップロードしない | そのまま（飛んだ版） |
+| Bump-Version が `Get the next version` で止まる（`must be greater than the version ... in version`） | 版上げの pull request がマージ済みでタグが無いため、次の版が `version` より大きくならない。pull request は開かない | マージ済みの版をまだ出せるなら、失敗したタグのジョブを再実行する。そうでなければ、入力の `version` に、`version` のファイルの版より大きい版を書いて Bump-Version を流す |
 | 30 日を過ぎて、run を再実行できない | | その版は飛んだ版として扱い、次の版を出す。その前に、行方の分からない試みすべてに行を足す |
 | 80 日より前の run | 事前の確認は数えない | |
 
@@ -183,6 +190,7 @@ ID が無くて事前の確認が止まったときは、そのエラーの文�
      | python3 .github/create-release-note-body.py https://github.com j5ik2o/event-store-adapter-kotlin >> release-body.md
    ```
 
-3. リリースを作ります：`gh release create vX.Y.Z --verify-tag --title "Release vX.Y.Z" -F release-body.md`。
+3. Latest にせずにリリースを作ります：`gh release create vX.Y.Z --verify-tag --title "Release vX.Y.Z" -F release-body.md --latest=false`。
+4. 最大の `vX.Y.Z` のリリースを Latest にします：`gh release edit v<最大の版> --latest`。
 
 この場合のために関門を緩めることはしません。関門は、事前の確認より前に、秘密の値を持たずに、版がほかのどのタグより大きいことを確かめ続けます。

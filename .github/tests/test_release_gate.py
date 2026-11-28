@@ -122,6 +122,67 @@ class ReleaseGateTest(unittest.TestCase):
                                     pulls=[pull(self.SHA, ref='release/v5.2.0')], tags={'v5.1.0': 'b' * 40}),
                          'v5.2.0')
 
+    def test_the_whole_pull_request_must_change_only_the_version(self):
+        # rebase のマージでは、最後のコミットだけを見ても前のコミットの変更が分からない（#925。rs#375 の指摘）
+        whole = lambda files, before, after: [pull(self.SHA, whole_diff={'files': files, 'before': before, 'after': after})]
+        cases = {
+            'with a code change': whole([VERSION_FILE, 'core/build.gradle.kts'], '5.2.1-SNAPSHOT\n', '5.3.0\n'),
+            'another file only': whole(['core/build.gradle.kts'], '5.3.0\n', '5.3.0\n'),
+            'to another version': whole([VERSION_FILE], '5.2.1-SNAPSHOT\n', '5.3.1\n'),
+            'without the version change': whole([VERSION_FILE], '5.3.0', '5.3.0\n'),
+            'same version': whole([VERSION_FILE], '5.3.0\n', '5.3.0\n'),
+            'line ending change': whole([VERSION_FILE], '5.2.1-SNAPSHOT', '5.3.0\n'),
+            'no before': whole([VERSION_FILE], None, '5.3.0\n'),
+            'no after': whole([VERSION_FILE], '5.2.1-SNAPSHOT\n', None),
+            'broken before': whole([VERSION_FILE], '5.x\n', '5.3.0\n'),
+            'not read': [pull(self.SHA, whole_diff=None)],
+            'not a dict': [pull(self.SHA, whole_diff=['version'])],
+        }
+        for label, pulls in cases.items():
+            with self.subTest(label):
+                self.assert_rejected('as a whole must change only the version in version to 5.3.0', pulls=pulls)
+                self.assert_rejected('as a whole', mode='publish', pulls=pulls,
+                                     tags={'v5.2.0': 'c' * 40, 'v5.3.0': self.SHA}, tag='v5.3.0')
+        # 途中で消えた変更（全体の差分に出ない）は通る。前の版は SNAPSHOT でも正式版でもよい
+        for before in ('5.2.1-SNAPSHOT\n', '5.2.0\n', '5.3.0-rc.1\n'):
+            with self.subTest(before=before):
+                self.assertEqual(self.check(pulls=whole([VERSION_FILE], before, '5.3.0\n')), 'v5.3.0')
+        self.assertEqual(self.check(parent='5.2.1-SNAPSHOT', current='5.3.0',
+                                    pulls=whole([VERSION_FILE], '5.2.1-SNAPSHOT', '5.3.0')), 'v5.3.0')
+        # 5.2.0 を待つ間は、全体の差分に依らず今までどおりの文で止まる（REQUIRED_PUBLISHED の動きを変えない）
+        self.assert_rejected('must wait until 5.2.0 is published', required=gate.Required('5.2.0', published=False),
+                             pulls=whole([VERSION_FILE, 'x'], '5.2.1-SNAPSHOT\n', '5.3.0\n'))
+
+    def test_check_next_refuses_a_version_that_is_not_greater_than_the_version_file(self):
+        # 版上げの PR が版を下げない（マージ済みでタグの無い版上げがあっても。#925）
+        self.assertEqual(gate.check_next('5.2.1-SNAPSHOT\n', '5.2.1'), '5.2.1')
+        self.assertEqual(gate.check_next('5.2.1-SNAPSHOT\n', '5.3.0'), '5.3.0')
+        self.assertEqual(gate.check_next('5.2.1\n', '5.2.2'), '5.2.2')   # CONTRIBUTING の回復（version=5.2.2）
+        self.assertEqual(gate.check_next('5.2.1', '10.0.0'), '10.0.0')
+        for text, version in (('5.2.1\n', '5.2.1'), ('5.2.1\n', '5.2.0'), ('5.3.0-SNAPSHOT\n', '5.2.9'),
+                              ('10.0.0\n', '9.9.9')):
+            with self.subTest(text=text, version=version), self.assertRaises(gate.GateError) as raised:
+                gate.check_next(text, version)
+            self.assertIn('must be greater than the version', str(raised.exception))
+        for text, version in (('5.2.1\n', '5.3.0-rc.1'), ('5.2.1\n', 'v5.3.0'), ('5.2.1\r\n', '5.3.0'), ('', '5.3.0')):
+            with self.subTest(text=text, version=version), self.assertRaises(gate.GateError):
+                gate.check_next(text, version)
+
+    def test_cli_check_next(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'version'
+            path.write_bytes(b'5.2.1-SNAPSHOT\n')
+            self.assertEqual(self.cli('check-next', '5.3.0', cwd=directory).returncode, 0)
+            path.write_bytes(b'5.3.0\n')
+            result = self.cli('check-next', '5.3.0', cwd=directory)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('::error::5.3.0 must be greater than the version 5.3.0 in version', result.stderr)
+            self.assertEqual(path.read_bytes(), b'5.3.0\n')
+            path.unlink()
+            result = self.cli('check-next', '5.3.0', cwd=directory)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('could not read version', result.stderr)
+
     def test_the_required_version_is_5_2_0_until_it_is_published(self):
         # R10 でこの値を None にする（design-r4.md §2）
         self.assertEqual(gate.REQUIRED_PUBLISHED, '5.2.0')
@@ -160,6 +221,21 @@ class ReleaseGateTest(unittest.TestCase):
     def cli(self, *args, stdin='', cwd=None):
         return subprocess.run([sys.executable, str(GATE_SCRIPT), *args], input=stdin, cwd=cwd,
                               text=True, capture_output=True, check=False)
+
+    def test_latest_release(self):
+        listing = 'v5.2.0\tfalse\nv5.4.0\tfalse\nv5.5.0\ttrue\nv6.0.0-rc.1\tfalse\nv1.0.511\tfalse\n'
+        self.assertEqual(gate.latest_release(listing, 'v5.3.0'), 'v5.4.0')
+        self.assertEqual(gate.latest_release('v5.2.0\tfalse\n', 'v5.4.0'), 'v5.4.0')      # 一覧が遅れても今のタグ
+        self.assertEqual(gate.latest_release('v5.2.0\tfalse\nv5.4.0\ttrue\n', 'v5.4.0'), 'v5.2.0')
+        self.assertIsNone(gate.latest_release('v5.4.0\ttrue\n', 'v5.4.0'))
+        self.assertIsNone(gate.latest_release('', 'v5.4.0-rc.1'))
+        for broken in ('v5.2.0\n', 'v5.2.0\tyes\n', 'v5.2.0\tfalse\tx\n'):
+            with self.subTest(broken=broken), self.assertRaises(gate.GateError):
+                gate.latest_release(broken, 'v5.4.0')
+        result = self.cli('latest-release', '--tag', 'v5.3.0', stdin=listing)
+        self.assertEqual((result.returncode, result.stdout), (0, 'v5.4.0\n'))
+        result = self.cli('latest-release', '--tag', 'v5.3.0', stdin='v5.2.0 false\n')
+        self.assertEqual(result.returncode, 1)
 
     def test_cli_latest_tag(self):
         self.assertEqual(self.cli('latest-tag', stdin='v5.1.0\nv5.2.0\nv6.0.0-rc.1\n').stdout, 'v5.2.0\n')
